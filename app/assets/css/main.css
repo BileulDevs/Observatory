@@ -1,0 +1,132 @@
+/*
+ * Global tokens and base styles. Components keep their own scoped styles and only read these variables.
+ * Identity: near-black space, bone-white text, one sodium-amber accent. Serif for names, mono for data.
+ */
+
+:root {
+  --bg: #04060a;
+  --fg: #ece7dc;
+  --fg-soft: #cdc8be;
+  --muted: #8c9099;
+  /* Lightest grey that still passes WCAG AA (4.5:1) for small text on --bg. Do not go darker. */
+  --faint: #737883;
+  --line: rgb(236 231 220 / 0.14);
+  --accent: #e2a75b;
+
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.75rem;
+  --space-6: 2.5rem;
+  --space-7: 4.5rem;
+  --space-8: 8rem;
+  --gutter: clamp(1.25rem, 4vw, 2.5rem);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: var(--bg); scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+button { font: inherit; }
+
+:focus-visible { outline: 1px solid var(--accent); outline-offset: 4px; }
+::selection { background: var(--accent); color: var(--bg); }
+
+/* Data voice: catalogue numbers, labels, metadata. */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Section label with a short accent rule. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 0 var(--space-4);
+  color: var(--accent);
+}
+.eyebrow::before { content: ""; width: 1.125rem; height: 1px; background: currentColor; }
+
+/* Text actions: no boxes, an underline carries the affordance. */
+.action {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.35rem 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  transition: color 0.2s, border-color 0.2s;
+}
+.action:hover { color: var(--fg); border-color: var(--fg); }
+.action--primary { color: var(--fg); border-color: var(--accent); }
+.action--primary::before { content: "→ "; color: var(--accent); }
+
+.skip-link {
+  position: absolute;
+  left: var(--gutter);
+  top: -100px;
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  background: var(--fg);
+  color: var(--bg);
+}
+.skip-link:focus { top: var(--space-3); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* App pages are full-screen instruments: the document itself does not scroll (panels scroll internally). */
+html, body { height: 100%; overflow: hidden; }
+
+/* Segmented choice: text buttons, the active one underlined in accent. */
+.seg { display: flex; flex-wrap: wrap; gap: 0.25rem 1.125rem; }
+.seg button {
+  appearance: none; background: none; border: 0; padding: 0.25rem 0; color: var(--muted); cursor: pointer;
+  font: 400 0.8125rem/1.2 var(--font-sans); position: relative;
+}
+.seg button:hover, .seg button[aria-pressed='true'] { color: var(--fg); }
+.seg button[aria-pressed='true']::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: var(--accent); }
+
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: none; margin: 0; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--line); }
+input[type=range]::-moz-range-track { height: 1px; background: var(--line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px; background: var(--fg); border: 0; }
+input[type=range]::-moz-range-thumb { width: 9px; height: 9px; background: var(--fg); border: 0; border-radius: 0; }
