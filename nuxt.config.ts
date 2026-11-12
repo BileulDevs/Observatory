@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { defineNuxtConfig } from 'nuxt/config'
 
 /**
- * Every catalogue object page, in both languages. The catalogue shows one category at a time, so the crawler
+ * Every catalogue object page. The catalogue shows one category at a time, so the crawler
  * alone would miss the others. Read with a pattern from the data files: the config cannot import app code
  * (its ~ aliases do not exist yet at this point).
  */
@@ -11,14 +11,14 @@ function objectRoutes(): string[] {
   const ids = readdirSync(dir)
     .filter((f) => f.endsWith('.ts'))
     .flatMap((f) => [...readFileSync(new URL(f, dir), 'utf8').matchAll(/id: '([a-z0-9-]+)', category:/g)].map((m) => m[1]!))
-  return ids.flatMap((id) => [`/objets/${id}`, `/en/objects/${id}`])
+  return ids.map((id) => `/objects/${id}`)
 }
 
-/** Every constellation page, in both languages, from the generated list (same pattern-reading approach). */
+/** Every constellation page, from the generated list (same pattern-reading approach). */
 function constellationRoutes(): string[] {
   const src = readFileSync(new URL('./app/data/constellations.generated.ts', import.meta.url), 'utf8')
   const ids = [...src.matchAll(/"id":"([a-z0-9-]+)"/g)].map((m) => m[1]!)
-  return ids.flatMap((id) => [`/constellations/${id}`, `/en/constellations/${id}`])
+  return ids.map((id) => `/constellations/${id}`)
 }
 
 /** Production origin. Used for canonical URLs, hreflang links and Open Graph. */
@@ -36,26 +36,16 @@ export default defineNuxtConfig({
 
   i18n: {
     baseUrl: SITE_URL,
-    defaultLocale: 'fr',
-    strategy: 'prefix_except_default',
+    // One URL per page, whatever the language: the static HTML is English, and the browser switches to French
+    // after hydration when the visitor's choice or browser language asks for it (plugins/locale.client.ts).
+    // Choosing on a server would avoid the switch, but the site is fully static.
+    strategy: 'no_prefix',
+    defaultLocale: 'en',
     locales: [
-      { code: 'fr', language: 'fr-FR', name: 'Français', file: 'fr.json' },
       { code: 'en', language: 'en-US', name: 'English', file: 'en.json' },
+      { code: 'fr', language: 'fr-FR', name: 'Français', file: 'fr.json' },
     ],
-    // Redirect on "/" only: crawlers and shared deep links always get the page they asked for.
-    detectBrowserLanguage: { useCookie: true, cookieKey: 'i18n_redirected', redirectOn: 'root' },
-    customRoutes: 'config',
-    // Keys are route names: pages/systems/index.vue → "systems", pages/systems/[id].vue → "systems-id".
-    pages: {
-      systems: { fr: '/systemes', en: '/systems' },
-      'systems-id': { fr: '/systemes/[id]', en: '/systems/[id]' },
-      objects: { fr: '/objets', en: '/objects' },
-      'objects-id': { fr: '/objets/[id]', en: '/objects/[id]' },
-      create: { fr: '/creation', en: '/create' },
-      constellations: { fr: '/constellations', en: '/constellations' },
-      'constellations-id': { fr: '/constellations/[id]', en: '/constellations/[id]' },
-      credits: { fr: '/credits', en: '/credits' },
-    },
+    detectBrowserLanguage: false,
   },
 
   app: {
@@ -117,6 +107,6 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     // Featured systems are reached by the crawler from the index; any other generated seed is rendered client-side.
-    prerender: { crawlLinks: true, routes: ['/', '/en', ...objectRoutes(), ...constellationRoutes()] },
+    prerender: { crawlLinks: true, routes: ['/', ...objectRoutes(), ...constellationRoutes()] },
   },
 })
