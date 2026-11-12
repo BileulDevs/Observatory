@@ -148,6 +148,11 @@ export interface PlanetRender extends PlanetSpec {
   atmosphere?: AtmosphereParams | null
   /** Sun glint on dark-blue areas of the map (Earth). */
   waterGlint?: boolean
+  /**
+   * Night-side city lights (equirectangular luminance map, aligned with `texture`). Only the Earth has one: no
+   * other world is known to be inhabited, so procedural planets never show lights.
+   */
+  nightLights?: string
   /** Axial tilt in degrees, when known. */
   tiltDeg?: number
 }

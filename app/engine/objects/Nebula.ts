@@ -21,6 +21,12 @@ const NEBULA_RADIUS = 8
  */
 const STEPS = { preview: 36, low: 56, high: 96 }
 /**
+ * Share of those steps per shape. The Pillars' columns are opaque (rays end on them) and the glow behind is
+ * smooth, so fewer steps do; each of their steps near a column surface costs a dozen noise fetches, which made
+ * them the slowest object to draw. Below ~0.6 the background shows bands.
+ */
+const STEP_SHARE: Partial<Record<NebulaRender['shape'], number>> = { pillars: 0.7 }
+/**
  * Baked volume edge (voxels): thumbnails / low tier / desktop. RGBA half-float: 112³ ≈ 11 MB, 160³ ≈ 33 MB.
  * Each voxel is 4 evaluations of the noise inputs at bake time (anti-aliasing), so the one-off bake grows with
  * the cube of this. Below ~96 the largest noise octave turns blobby.
@@ -30,6 +36,25 @@ const VOLUME = { preview: 64, low: 112, high: 160 }
 const NOISE_SIZE = 64
 /** Lattice period of the noise (cells per texture edge): sets the base feature size. */
 const NOISE_PERIOD = 8
+/**
+ * Marker points per shape, in the volume's unit coordinates (× NEBULA_RADIUS), taken from the field in
+ * shaders/nebula.ts and the star list in buildStars(): move one with its feature or the marker will point at gas
+ * that is no longer there.
+ */
+const NEBULA_MARKS: Record<NebulaRender['shape'], Partial<Record<string, readonly [number, number, number]>>> = {
+  // Trapezium near the centre; the cavity it blew open towards us; the gas wall behind.
+  emission: { 'trapezium': [0.06, 0.02, 0.08], 'cavity': [0.05, -0.12, 0.32], 'gas-wall': [-0.45, 0.3, -0.2] },
+  // Barrel seen down its axis: the white dwarf, the bright rim (ρ = 0.6), the faint outer loops (ρ = 0.82, y ÷ 1.22).
+  ring: { 'central-star': [0, 0, 0], 'rim': [0.6, 0, 0], 'halo': [0, 0.82 / 1.22, 0] },
+  // Knots in the band 0.32 < ρ < 0.62; the thick ring at ρ ≈ 0.56.
+  helix: { 'central-star': [0, 0, 0], 'knots': [0.3, 0.3, 0], 'rim': [-0.56, -0.1, 0] },
+  // Pulsar near the centre; filaments in the outer shell (rq 0.5–0.86 with y ÷ 0.72); synchrotron glow inside.
+  remnant: { 'pulsar': [0.02, 0.01, 0], 'filaments': [0.72, 0.1, 0], 'synchrotron': [-0.18, 0.12, 0.1] },
+  // Tallest column (axis at x = −0.42 + 0.06y, top at y = 0.62), its lit front face; the massive stars above.
+  pillars: { 'pillar': [-0.39, 0.4, 0.1], 'massive-stars': [0, 0.85, 0] },
+  // Eta Carinae's bright knot; a dark lane across the complex.
+  complex: { 'eta-carinae': [0.18, 0.08, 0], 'dust-lane': [-0.3, -0.25, 0.2] },
+}
 const SHAPE_INDEX: Record<NebulaRender['shape'], number> = { emission: 0, ring: 1, helix: 2, remnant: 3, pillars: 4, complex: 5 }
 /** Overall brightness per shape: thin shells need more gain than big emission clouds. */
 const SHAPE_GAIN: Record<NebulaRender['shape'], number> = { emission: 1.0, ring: 0.85, helix: 0.9, remnant: 1.0, pillars: 1.0, complex: 1.6 }
@@ -52,13 +77,15 @@ export class Nebula implements SpaceBody {
   private readonly volumeU
   private readonly stars: Points<BufferGeometry, ShaderMaterial>
   private readonly starU = { uPR: { value: 1 }, uViewH: { value: 800 }, uI: { value: 1 } }
+  private readonly marks: Partial<Record<string, readonly [number, number, number]>>
   private readonly invLocal = new Matrix4()
   private readonly volumeTarget: WebGL3DRenderTarget
   private baked = false
   private readonly bakeFn: () => void
 
   constructor(render: NebulaRender, ctx: BodyContext) {
-    const steps = ctx.preview ? STEPS.preview : ctx.quality.tier === 'low' ? STEPS.low : STEPS.high
+    const base = ctx.preview ? STEPS.preview : ctx.quality.tier === 'low' ? STEPS.low : STEPS.high
+    const steps = Math.round(base * (STEP_SHARE[render.shape] ?? 1))
     const size = ctx.preview ? VOLUME.preview : ctx.quality.tier === 'low' ? VOLUME.low : VOLUME.high
     const noise = acquireNoise()
     this.volumeTarget = new WebGL3DRenderTarget(size, size, size, {
@@ -93,6 +120,7 @@ export class Nebula implements SpaceBody {
 
     // Planetary nebulae and the Crab are seen face-on in famous images; pillars from the front, slightly below.
     const face = render.shape === 'ring' || render.shape === 'helix'
+    this.marks = NEBULA_MARKS[render.shape]
     this.view = { elevationDeg: face ? 8 : render.shape === 'pillars' ? -4 : 10, azimuthDeg: 0, distance: 3.3 }
   }
 
@@ -106,6 +134,13 @@ export class Nebula implements SpaceBody {
     this.invLocal.copy(this.volume.matrixWorld).invert()
     this.volumeU.uCamL.value.copy(camera.position).applyMatrix4(this.invLocal)
     this.starU.uViewH.value = viewHeightOf(camera)
+  }
+
+  anchor(key: string, _camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    const p = this.marks[key]
+    if (!p) return null
+    this.root.updateWorldMatrix(true, false)
+    return this.root.localToWorld(out.set(p[0], p[1], p[2]).multiplyScalar(NEBULA_RADIUS))
   }
 
   dispose(): void {

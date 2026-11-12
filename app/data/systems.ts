@@ -66,7 +66,7 @@ export const solarSystem: PlanetarySystem = {
         en: 'The only planet known to host life, and the only one in the system with liquid water on its surface. The clouds shown are procedural: they do not depict real weather.',
       },
       facts: { radiusKm: 6378, massEarth: 1, semiMajorAxisAU: 1.0, periodDays: 365.2, eccentricity: 0.017, dayHours: 24.0, gravity: 9.8, meanTempC: 15, moons: 1, obliquityDeg: 23.4 },
-      render: { type: 'ocean', seed: 13, texture: TEX + 'earth.jpg', waterGlint: true, clouds: true, tiltDeg: 23.4 },
+      render: { type: 'ocean', seed: 13, texture: TEX + 'earth.jpg', nightLights: TEX + 'earth-night.jpg', waterGlint: true, clouds: true, tiltDeg: 23.4 },
       swatch: '#4f7fb8',
       moons: [{ id: 'moon', name: { fr: 'Lune', en: 'Moon' }, radiusKm: 1737.4, semiMajorAxisKm: 384400, periodDays: 27.322, texture: MOON_TEX + 'moon.jpg', color: '#9a9690', gmKm3s2: 4902.8, densityGcm3: 3.344,
           description: { fr: "Seul satellite naturel de la Terre. En rotation synchrone, elle nous montre toujours la même face ; ses mers sombres sont d'anciennes coulées de basalte.", en: "Earth's only natural satellite. Tidally locked, it always shows us the same face; its dark maria are ancient basalt flows." } }],

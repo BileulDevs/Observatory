@@ -1,10 +1,11 @@
 import {
-  AdditiveBlending, BackSide, Color, Group, Mesh, PlaneGeometry, Quaternion, ShaderMaterial, SphereGeometry,
+  AdditiveBlending, BackSide, Color, Group, Mesh, PlaneGeometry, Quaternion, ShaderMaterial, SphereGeometry, Vector3,
   type PerspectiveCamera,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { GLOW_VERT } from '../shaders/galaxy'
 import { STAR_FRAG, STAR_GLOW_FRAG, STAR_VERT } from '../shaders/stellar'
+import { facingPoint } from './anchors'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 
 export type StarRender = Extract<ObjectRender, { kind: 'star' }>
@@ -19,6 +20,10 @@ const SEGMENTS = { preview: 48, full: 160 }
 const GRANULATION_SCALE = 9
 /** Fastest on-screen spin, radians per second, whatever the real period: faster reads as a glitch. */
 const MAX_SPIN = 1.2
+/** Corona marker: how far out from the centre, in star radii (the glow fades by ~1.6). */
+const CORONA_LIFT = 1.25
+/** Envelope marker of black hole stars: inside the haze shell (1.35 radii). */
+const ENVELOPE_LIFT = 1.2
 /** Real rotation period (seconds) mapped to the on-screen spin: log-compressed, a day turns in ~60 s. */
 function spinOf(periodS: number | undefined): number {
   if (!periodS) return 0.05
@@ -49,6 +54,7 @@ export class CatalogueStar implements SpaceBody {
   private readonly glowU = { uColor: { value: new Color() }, uI: { value: 0.6 }, uCore: { value: 1 / GLOW_EXTENT } }
   private readonly hazeU = { uColor: { value: new Color() }, uI: { value: 0 } }
   private readonly parentQ = new Quaternion()
+  private readonly center = new Vector3()
   private spin = 0.05
 
   constructor(render: StarRender, ctx: BodyContext) {
@@ -102,6 +108,21 @@ export class CatalogueStar implements SpaceBody {
     this.root.updateWorldMatrix(true, false)
     this.root.getWorldQuaternion(this.parentQ).invert()
     this.glow.quaternion.copy(camera.quaternion).premultiply(this.parentQ)
+  }
+
+  /**
+   * Marker points placed from the camera, so they are on the visible face whatever the view: the photosphere,
+   * its edge (limb darkening), the corona just outside, and the haze of a black hole star's envelope.
+   */
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    this.root.getWorldPosition(this.center)
+    switch (key) {
+      case 'surface': return facingPoint(this.center, STAR_RADIUS, camera, 35, -40, out)
+      case 'limb': return facingPoint(this.center, STAR_RADIUS, camera, 88, 60, out)
+      case 'corona': return facingPoint(this.center, STAR_RADIUS, camera, 90, 120, out, CORONA_LIFT)
+      case 'envelope': return this.haze.visible ? facingPoint(this.center, STAR_RADIUS, camera, 90, 120, out, ENVELOPE_LIFT) : null
+      default: return null
+    }
   }
 
   dispose(): void {

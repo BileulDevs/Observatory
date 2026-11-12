@@ -130,3 +130,11 @@ input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(
 input[type=range]::-moz-range-track { height: 1px; background: var(--line); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px; background: var(--fg); border: 0; }
 input[type=range]::-moz-range-thumb { width: 9px; height: 9px; background: var(--fg); border: 0; border-radius: 0; }
+
+/*
+ * Side panels scroll under the fixed header, which has no background: fade their content out at the top instead of
+ * letting text run behind the wordmark. Desktop only: on phones the panels are bottom sheets with their own edge.
+ */
+@media (min-width: 900px) {
+  .panel-fade { mask-image: linear-gradient(to bottom, transparent 0, transparent 4.2rem, #000 6rem); }
+}

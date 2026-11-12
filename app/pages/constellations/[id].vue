@@ -20,6 +20,13 @@ const { tl, num } = useLocalized()
 const localePath = useLocalePath()
 const { sheet } = useStarSheet()
 
+// Unknown ids are rejected by the router, before the page is created. Throwing from setup alone is not enough:
+// in dev builds Vue still renders the template after a setup error, and the template then reads fields of an
+// undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
+definePageMeta({
+  validate: (route) => CONSTELLATIONS.some((c) => c.id === String(route.params.id)),
+})
+
 const summary = CONSTELLATIONS.find((c) => c.id === String(route.params.id))
 if (!summary) throw createError({ statusCode: 404, statusMessage: t('constellations.notFound'), fatal: true })
 
@@ -69,6 +76,8 @@ const stage = useStage(async () => {
 })
 
 watch(view, (v) => stage.value?.setView(v))
+const wide = useWideLayout(WIDE_QUERY)
+watch(wide, (w) => stage.value?.setShift(w ? SHIFT.wide : SHIFT.narrow))
 watch([slotA, slotB], ([a, b]) => {
   stage.value?.setSelection(a, b)
   placeLabels()
@@ -141,7 +150,7 @@ useSeoMeta({
 <template>
   <div class="obj">
     <div class="obj__scrim" aria-hidden="true" />
-    <section class="panel interactive" :aria-label="tl(summary.name)">
+    <section class="panel panel-fade interactive" :aria-label="tl(summary.name)">
       <NuxtLink :to="localePath('constellations')" class="back mono">← {{ $t('constellations.title') }}</NuxtLink>
       <p class="eyebrow mono">{{ summary.latin }} · {{ summary.genitive }} · {{ summary.abbr }}</p>
       <h1 class="panel__title">{{ tl(summary.name) }}</h1>

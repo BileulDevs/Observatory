@@ -25,7 +25,7 @@ function constellationRoutes(): string[] {
 const SITE_URL = 'https://observatoire.example' // ← replace with the final domain
 
 export default defineNuxtConfig({
-  ssr: true,
+  ssr: false,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
@@ -107,6 +107,6 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     // Featured systems are reached by the crawler from the index; any other generated seed is rendered client-side.
-    prerender: { crawlLinks: true, routes: ['/', ...objectRoutes(), ...constellationRoutes()] },
+    prerender: { crawlLinks: true, routes: ['/', '/exploits', '/exploits/apollo-11', ...objectRoutes(), ...constellationRoutes()] },
   },
 })

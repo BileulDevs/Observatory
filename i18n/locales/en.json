@@ -13,7 +13,8 @@
     "systems": "Planetary systems",
     "objects": "Objects",
     "create": "Create",
-    "constellations": "Constellations"
+    "constellations": "Constellations",
+    "exploits": "Exploits"
   },
   "space": {
     "unsupported": "WebGL 2 is not available in this browser: the 3D view cannot be shown.",
@@ -72,7 +73,6 @@
     "reseed": "New seed",
     "spin": "Rotation",
     "spinStopped": "Rotation (stopped)",
-    "marker": "Marker 01",
     "hint": "Drag to orbit · scroll to zoom"
   },
   "systems": {
@@ -126,7 +126,8 @@
     "moonFictional": "Fictional moon of {planet}",
     "prevMoon": "Previous moon",
     "nextMoon": "Next moon",
-    "hintMoons": "Click a moon to inspect it"
+    "hintMoons": "Click a moon to inspect it",
+    "loading": "Loading…"
   },
   "facts": {
     "radius": "Radius",
@@ -203,6 +204,11 @@
     "notFound": "This object does not exist.",
     "pause": "Pause",
     "play": "Play",
+    "goToMarker": "Go to marker: {name}",
+    "markersHint": "Click a marker in the scene or in this list.",
+    "closeMarker": "Close the marker sheet",
+    "markers": "Markers",
+    "marker": "Marker {n}",
     "hint": "Drag to rotate · scroll to zoom",
     "derived": "computed",
     "big": {
@@ -551,6 +557,54 @@
       "sky": "Starry sky",
       "shaders": "Compiling shaders",
       "stage": "First frame of the scene"
+    }
+  },
+  "exploits": {
+    "title": "Exploits",
+    "intro": "Moments when people did what had never been done, told step by step in 3D scenes built from the record. Whatever is reconstructed or simplified is always marked.",
+    "pageDescription": "{name}: an interactive 3D story, step by step.",
+    "enter": "Enter",
+    "stepsAvailable": "{built} of {total} steps available",
+    "step": "Step {n} of {total}",
+    "prev": "Previous step",
+    "next": "Next step",
+    "play": "Play",
+    "pause": "Pause",
+    "replay": "Replay the step",
+    "upcoming": "in preparation",
+    "progressLabel": "Steps",
+    "objects": "In the scene",
+    "objectsHint": "Click an object in the scene or in this list.",
+    "notes": "What you see",
+    "kind": {
+      "reconstruction": "Reconstruction",
+      "simplification": "Simplification"
+    },
+    "sources": "Sources",
+    "close": "Close",
+    "keys": "← → steps · Space pause · C recenter · Esc close",
+    "notFound": "Unknown exploit",
+    "marker": "Marker {n}",
+    "recenter": "Recenter the camera",
+    "autoplay": "Play the steps in a row",
+    "autoplayOn": "Steps play in a row",
+    "autoplayOff": "Stop at the end of each step"
+  },
+  "error": {
+    "home": "Back to the observatory",
+    "back": "Go back",
+    "lost": {
+      "eyebrow": "Error 404 · signal lost",
+      "title": "Lost in the void.",
+      "body": "This address leads nowhere: no star, no planet, only the dark between galaxies. The tether snapped, but the observatory is not far.",
+      "positionLabel": "Last known position:",
+      "signalLabel": "Signal:",
+      "signalValue": "no response"
+    },
+    "generic": {
+      "eyebrow": "Error {status}",
+      "title": "Something broke on board.",
+      "body": "Something went wrong while loading this page. Try again from the observatory."
     }
   }
 }

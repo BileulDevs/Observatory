@@ -55,6 +55,8 @@ uniform float uScale;
 // Real-world equirectangular map (NASA/USGS). When set it replaces the procedural albedo.
 uniform sampler2D uMap;
 uniform float uUseMap;
+uniform sampler2D uNight;
+uniform float uUseNight;
 // 1 for maps where dark blue means open water (Earth): enables the sun glint there.
 uniform float uMapWater;
 
@@ -114,11 +116,6 @@ void main(){
     waterCol = mix(waterCol, uP5 * 0.9, seaIce);
     albedo = mix(waterCol, ground, land);
     water = (1.0 - land) * (1.0 - seaIce);
-    if (uCity > 0.0) {
-      float region = smoothstep(0.58, 0.85, fbm(d * 20.0 + uSeedR, 3) * 0.5 + 0.5);
-      float sprawl = pow(max(snoise(d * 240.0 + uSeedR), 0.0), 1.4) + pow(max(snoise(d * 900.0), 0.0), 2.0) * 0.4;
-      cityMask = region * sprawl * land * smoothstep(0.45, 0.15, e) * (1.0 - snow) * smoothstep(0.3, 0.55, moist);
-    }
     if (water > 0.5) nO = d;
   } else if (uType == 1) {
     float e = smoothstep(-0.35, 0.45, h);
@@ -148,7 +145,8 @@ void main(){
     albedo = sampleMap(d);
     nO = d;
     gloss = 0.0;
-    cityMask = 0.0;
+    // Real city lights from the night map (Earth only); every other mapped or procedural world stays dark.
+    cityMask = uUseNight > 0.5 ? sampleEquirect(uNight, d).r : 0.0;
     water = uMapWater * smoothstep(0.03, 0.12, albedo.b - max(albedo.r, albedo.g));
     land = 1.0 - water;
   }

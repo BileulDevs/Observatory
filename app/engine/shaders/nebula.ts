@@ -172,16 +172,17 @@ vec4 shadeNebula(vec3 p, vec4 i){
   // Pillars: three eroded dust columns, black inside, glowing only where their surface faces the massive stars
   // above them, in front of a blue-green emission background.
   // Fine erosion only near the surface, where it changes the outline.
-  float d = abs(i.x) < 0.08 ? i.x + pillarWobFine(p * 1.15 + uSeed) : i.x;
+  float fine = abs(i.x) < 0.08 ? pillarWobFine(p * 1.15 + uSeed) : 0.0;
+  float d = i.x + fine;
   float dust = smoothstep(0.015, -0.03, d);
   float skin = smoothstep(0.03, 0.0, d) * smoothstep(-0.05, 0.0, d);
   float facing = 0.0;
-  // Facing the light when the point just outside, towards the stars, is outside the column too. The same
-  // distance again (volume fetch plus fine erosion), only on the thin skin where it matters: without the fine
-  // part the lit side comes out as smooth broad patches.
+  // Facing the light when the point just outside, towards the stars, is outside the column too: one more volume
+  // fetch, plus the fine erosion of this point (4.5% of the volume away it barely differs). Evaluating the fine
+  // erosion again at the offset point doubled the cost of every skin sample, the Pillars' worst frame times.
   if (skin > 0.0) {
     vec3 q = p + normalize(vec3(0.15, 1.0, 0.25)) * 0.045;
-    facing = smoothstep(0.0, 0.03, vol(q).x + pillarWobFine(q * 1.15 + uSeed));
+    facing = smoothstep(0.0, 0.03, vol(q).x + fine);
   }
   float back = smoothstep(1.0, 0.2, r) * smoothstep(0.38, 0.72, i.y) * smoothstep(0.25, -0.6, p.z);
   em = uC2 * back * 0.55 + mix(uC1, uC3, 0.5) * skin * facing * (1.0 + 2.2 * i.z) + vec3(0.05, 0.035, 0.025) * dust * 0.15;

@@ -125,6 +125,8 @@ export class Planet {
     uScale: { value: 1 },
     uMap: { value: null as Texture | null },
     uUseMap: { value: 0 },
+    uNight: { value: null as Texture | null },
+    uUseNight: { value: 0 },
     uMapWater: { value: 0 },
   }
   private readonly cloudU = {
@@ -224,6 +226,15 @@ export class Planet {
     const version = ++this.specVersion
     this.surfaceU.uUseMap.value = 0
     this.surfaceU.uMap.value = null
+    this.surfaceU.uUseNight.value = 0
+    this.surfaceU.uNight.value = null
+    if (spec.nightLights) {
+      loadColorMap(spec.nightLights).then((tex) => {
+        if (version !== this.specVersion) return
+        this.surfaceU.uNight.value = tex
+        this.surfaceU.uUseNight.value = 1
+      }).catch((err) => console.warn('[planet] night-lights map failed: no city lights', spec.nightLights, err))
+    }
     if (spec.texture) {
       loadColorMap(spec.texture).then((tex) => {
         if (version !== this.specVersion) return
@@ -437,7 +448,8 @@ export class Planet {
     s.uType.value = PLANET_TYPES.indexOf(this.spec.type)
     s.uSea.value = type.sea
     s.uBump.value = type.bump * this.relief
-    s.uCity.value = this.spec.type === 'ocean' ? look.city : 0
+    // City lights only where they are real: worlds with a night-lights map (the Earth).
+    s.uCity.value = this.spec.nightLights ? look.city : 0
     s.uOverlay.value = look.overlay
     s.uContourF.value = type.contour
     const hasClouds = this.spec.clouds ?? type.clouds

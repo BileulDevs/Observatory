@@ -53,6 +53,9 @@ const stage = useStage(async () => {
   return instance
 })
 
+const wide = useWideLayout(WIDE_QUERY)
+watch(wide, (w) => stage.value?.setLayout(w ? LAYOUT.wide : LAYOUT.narrow))
+
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null
 let urlTimer: ReturnType<typeof setTimeout> | null = null
 watch(derived, (d) => {
@@ -127,7 +130,7 @@ useSeoMeta({ title: () => t('creator.title'), description: () => t('creator.desc
 <template>
   <div class="obj">
     <div class="obj__scrim" aria-hidden="true" />
-    <section class="panel interactive" :aria-label="$t('creator.title')">
+    <section class="panel panel-fade interactive" :aria-label="$t('creator.title')">
       <p class="eyebrow mono">{{ $t('creator.eyebrow') }}</p>
       <h1 class="panel__title">{{ $t('creator.title') }}</h1>
       <p class="panel__desc">{{ $t('creator.description') }}</p>

@@ -1,4 +1,4 @@
-import type { Object3D, PerspectiveCamera, Texture, Vector3, WebGLRenderer } from 'three'
+import type { Object3D, PerspectiveCamera, Texture, Vector3, WebGLRenderer, WebGLRenderTarget } from 'three'
 import type { CubeBaker } from '../bake/CubeBaker'
 import type { QualityProfile } from '../core/quality'
 
@@ -7,6 +7,8 @@ export interface BodyContext {
   baker: CubeBaker
   /** For one-off offscreen work only (volume bakes); restore any renderer state you change. */
   renderer: WebGLRenderer
+  /** Where frames are drawn: pass it to prepareForScene so shaders compile in their final variant. */
+  drawTarget: WebGLRenderTarget
   quality: QualityProfile
   /** Catalogue thumbnail: fewer particles, fewer ray-march steps, no high-resolution bake. */
   preview: boolean
@@ -46,6 +48,12 @@ export interface SpaceBody {
   /** Point the camera aims at, in the root's frame; the origin when absent. */
   readonly focus?: Vector3
   update(dt: number, time: number, camera: PerspectiveCamera): void
+  /**
+   * World position of a named point of the body for a marker (keys: ANCHOR_KEYS in anchors.ts), as of the last
+   * update; null when this body has no such part or the point is hidden behind it. Called every drawn frame
+   * while markers are shown: no allocation.
+   */
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null
   dispose(): void
 }
 

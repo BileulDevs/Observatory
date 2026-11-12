@@ -1,8 +1,9 @@
 import {
-  AdditiveBlending, Color, DoubleSide, Group, Mesh, RingGeometry, ShaderMaterial, type PerspectiveCamera,
+  AdditiveBlending, Color, DoubleSide, Group, Mesh, RingGeometry, ShaderMaterial, Vector3, type PerspectiveCamera,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { Planet } from '../bodies/Planet'
+import { facingPoint, onFarSide } from './anchors'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 
 type DwarfRender = Extract<ObjectRender, { kind: 'dwarf-planet' }>
@@ -56,6 +57,9 @@ export class DwarfPlanet implements SpaceBody {
   private readonly shape = new Group()
   private readonly ring: Mesh<RingGeometry, ShaderMaterial> | null = null
   private readonly spin: number
+  private readonly ringRadius: number | null
+  private readonly center = new Vector3()
+  private readonly tmp = new Vector3()
 
   constructor(render: DwarfRender, ctx: BodyContext) {
     this.view = { elevationDeg: render.elevationDeg ?? 12, azimuthDeg: 70, distance: 7.5 }
@@ -69,6 +73,7 @@ export class DwarfPlanet implements SpaceBody {
     this.root.add(this.shape)
     if (render.ellipsoid) this.shape.scale.set(...render.ellipsoid)
     this.spin = render.ellipsoid ? FAST_SPIN : SPIN
+    this.ringRadius = render.ring?.radius ?? null
 
     if (render.ring) {
       const inner = render.ring.radius - render.ring.width / 2
@@ -88,6 +93,43 @@ export class DwarfPlanet implements SpaceBody {
     // The ellipsoid turns as a whole; the planet inside does not spin on its own.
     this.shape.rotation.y += dt * this.spin
     this.planet.update(dt, camera, false)
+  }
+
+  /**
+   * Marker points: a point of the visible face and the limb (placed from the camera), the ring, the nearer end of
+   * an ellipsoid's long axis, and 'uv:u,v', a point of the surface map given in texture coordinates (read off the
+   * map image: u from its left edge, v from its bottom), which turns with the body and hides on the far side.
+   */
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    this.root.updateWorldMatrix(true, true)
+    this.root.getWorldPosition(this.center)
+    if (key.startsWith('uv:')) {
+      const [u, v] = key.slice(3).split(',').map(Number) as [number, number]
+      // Inverse of sampleEquirect (shaders/equirect.ts): u = atan(z, −x) / 2π, v = 1 − acos(y) / π.
+      const a = 2 * Math.PI * u
+      const polar = Math.PI * (1 - v)
+      out.set(-Math.cos(a) * Math.sin(polar), Math.cos(polar), Math.sin(a) * Math.sin(polar)).multiplyScalar(PLANET_RADIUS)
+      this.planet.root.localToWorld(out)
+      return onFarSide(out, this.center, camera) ? null : out
+    }
+    switch (key) {
+      case 'surface': return facingPoint(this.center, PLANET_RADIUS, camera, 35, -40, out)
+      case 'limb': return facingPoint(this.center, PLANET_RADIUS, camera, 86, 55, out)
+      case 'ring': {
+        if (this.ringRadius === null) return null
+        // On the ring's near side, to the right of the screen.
+        this.tmp.subVectors(camera.position, this.center).setY(0).normalize()
+        out.set(-this.tmp.z, 0, this.tmp.x).multiplyScalar(-0.7).addScaledVector(this.tmp, 0.7).normalize()
+        return out.multiplyScalar(this.ringRadius).add(this.center)
+      }
+      case 'long-axis': {
+        // Whichever end of the long (x) axis is nearer the camera, so the marker stays on the visible side.
+        this.shape.localToWorld(out.set(PLANET_RADIUS, 0, 0))
+        this.shape.localToWorld(this.tmp.set(-PLANET_RADIUS, 0, 0))
+        return out.distanceToSquared(camera.position) <= this.tmp.distanceToSquared(camera.position) ? out : out.copy(this.tmp)
+      }
+      default: return null
+    }
   }
 
   dispose(): void {

@@ -1,6 +1,6 @@
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CircleGeometry, Color, CustomBlending, DoubleSide, Group, Mesh, PlaneGeometry,
-  OneMinusSrcColorFactor, Points, Quaternion, ShaderMaterial, Vector2, ZeroFactor, type PerspectiveCamera,
+  OneMinusSrcColorFactor, Points, Quaternion, ShaderMaterial, Vector2, Vector3, ZeroFactor, type PerspectiveCamera,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { fbm3, gaussian } from '../core/noise'
@@ -51,6 +51,8 @@ export class Galaxy implements SpaceBody {
   readonly minDistance = 0.25
   readonly animated = true
 
+  /** Marker points in the star cloud's own (slowly turning) frame. */
+  private readonly marks = new Map<string, Vector3>()
   private readonly stars: Points<BufferGeometry, ShaderMaterial>
   private readonly dust: Points<BufferGeometry, ShaderMaterial> | null
   private readonly glow: Mesh<PlaneGeometry, ShaderMaterial>
@@ -75,6 +77,7 @@ export class Galaxy implements SpaceBody {
       case 'magellanic': buildMagellanic(stars, dust, R, count, rnd, core, arm, render.seed); break
       default: buildSpiral(stars, dust, R, count, rnd, core, arm, render)
     }
+    this.placeMarks(render, R)
 
     const pr = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio)
     this.pointU = { uPR: { value: pr }, uViewH: { value: 800 }, uI: { value: (opts.intensity ?? 1) * 1.0 } }
@@ -144,6 +147,53 @@ export class Galaxy implements SpaceBody {
     this.dustU.uViewH.value = this.pointU.uViewH.value
   }
 
+  /**
+   * Marker points, from the same formulas that place the stars: the core, the bar's end, a point on the first arm
+   * and on its dust lane, the companion at the arm's tip, the Sombrero's bulge and ring, the Tarantula.
+   */
+  private placeMarks(render: GalaxyRender, R: number): void {
+    const m = this.marks
+    m.set('core', new Vector3())
+    m.set('disk-edge', new Vector3(0, 0, R * 0.95))
+    switch (render.morphology) {
+      case 'elliptical':
+        m.set('halo', new Vector3(R * 0.5, R * 0.22, 0))
+        return
+      case 'sombrero':
+        m.set('bulge', new Vector3(0, R * 0.2, 0))
+        m.set('dust-lane', new Vector3(0, 0, R * 0.78))
+        return
+      case 'magellanic':
+        m.set('bar', new Vector3(-R * 0.12, 0, 0))
+        m.set('tarantula', new Vector3(R * 0.38, 0, -R * 0.22))
+        return
+      default: {
+        const barred = render.morphology === 'barred-spiral'
+        if (barred) m.set('bar', new Vector3(R * 0.28 * 0.8, 0, 0))
+        m.set('bulge', new Vector3(0, R * 0.05, 0))
+        const r = R * ARM_MARK_RADIUS
+        const th = spiralAngle(render, R, r, 0)
+        m.set('arm', new Vector3(r * Math.cos(th), 0, r * Math.sin(th)))
+        // Dust lanes trace the arms' inner edge (see buildSpiral).
+        const rl = R * LANE_MARK_RADIUS
+        const width = (render.morphology === 'grand-design' ? 0.05 : 0.09) * R * (0.4 + rl / R)
+        const tl = spiralAngle(render, R, rl, 0) - (width * 0.9) / rl
+        m.set('dust-lane', new Vector3(rl * Math.cos(tl), 0, rl * Math.sin(tl)))
+        if (render.companion) {
+          const tipA = spiralAngle(render, R, R, 0) + 0.3
+          m.set('companion', new Vector3(R * 1.12 * Math.cos(tipA), R * 0.06, R * 1.12 * Math.sin(tipA)))
+        }
+      }
+    }
+  }
+
+  anchor(key: string, _camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    const p = this.marks.get(key)
+    if (!p) return null
+    this.stars.updateWorldMatrix(true, false)
+    return this.stars.localToWorld(out.copy(p))
+  }
+
   dispose(): void {
     this.stars.geometry.dispose()
     this.stars.material.dispose()
@@ -191,6 +241,20 @@ function diskRadius(rnd: () => number, h: number, rMax: number): number {
 
 const tmpC = new Color()
 
+/** Where the arm and dust-lane markers sit, in galaxy radii: well out on the arm, clear of the bulge. */
+const ARM_MARK_RADIUS = 0.62
+const LANE_MARK_RADIUS = 0.45
+
+/**
+ * Angle of spiral arm k at radius r: θ = θₖ + twist · ln(r/r₀) / ln(R/r₀), from the bar's ends (r₀) when there is
+ * a bar. Shared by the star placement and the markers.
+ */
+function spiralAngle(render: GalaxyRender, R: number, r: number, k: number): number {
+  const r0 = render.morphology === 'barred-spiral' ? R * 0.28 : R * 0.08
+  const arms = Math.max(1, render.arms)
+  return (k / arms) * Math.PI * 2 + render.twist * Math.log(Math.max(r, r0) / r0) / Math.log(R / r0)
+}
+
 /**
  * Spiral galaxies. Arms follow logarithmic spirals θ = θₖ + twist · ln(r/r₀) / ln(R/r₀), starting from the bar
  * ends when there is a bar. Stars on arms are young and bluer; HII knots and dust lanes trace the arms' inner edge.
@@ -204,8 +268,7 @@ function buildSpiral(stars: Cloud, dust: Cloud, R: number, count: number, rnd: (
   const armShare = grand ? 0.78 : 0.62
   const bulgeShare = barred ? 0.12 : 0.16
   const barShare = barred ? 0.1 : 0
-  const angleAt = (r: number, k: number) =>
-    (k / arms) * Math.PI * 2 + render.twist * Math.log(Math.max(r, r0) / r0) / Math.log(R / r0)
+  const angleAt = (r: number, k: number) => spiralAngle(render, R, r, k)
 
   for (let i = 0; i < count; i++) {
     const u = rnd()
