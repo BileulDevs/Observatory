@@ -10,9 +10,32 @@ export type SpaceStatus = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
  */
 const engineRef = shallowRef<Engine | null>(null)
 
+/**
+ * Real start-up state, filled by events as they happen (nothing here is timed or simulated):
+ * - fonts: the web fonts have loaded (document.fonts.ready);
+ * - engine: the Three.js / engine code has been downloaded and evaluated;
+ * - gpu: WebGL renderer created, device tier detected;
+ * - sky: the backdrop's sky cubemap is baked;
+ * - shaders: shader programs compiled so far / in total (the current scene's);
+ * - frame: a frame has been drawn;
+ * - pendingStages: pages' 3D stages registered but not yet drawn once (data, models, compile).
+ */
+export interface BootState {
+  fonts: boolean
+  engine: boolean
+  gpu: boolean
+  sky: boolean
+  shaders: { done: number; total: number; ready: boolean }
+  frame: boolean
+  pendingStages: number
+}
+
 export function useSpace() {
   const status = useState<SpaceStatus>('space-status', () => 'idle')
-  return { status, engine: engineRef }
+  const boot = useState<BootState>('space-boot', () => ({
+    fonts: false, engine: false, gpu: false, sky: false, shaders: { done: 0, total: 0, ready: false }, frame: false, pendingStages: 0,
+  }))
+  return { status, boot, engine: engineRef }
 }
 
 /**
@@ -26,23 +49,45 @@ export function useStage<T extends Stage>(factory: (engine: Engine) => T | Promi
   let alive = true
   let started = false
 
+  const { boot } = useSpace()
+  let pending = false
+  const settle = () => {
+    if (!pending) return
+    pending = false
+    boot.value.pendingStages = Math.max(0, boot.value.pendingStages - 1)
+  }
+
   onMounted(() => {
+    // Counted from mount: the loading screen waits for this stage's first drawn frame, not just the engine's.
+    pending = true
+    boot.value.pendingStages++
     stop = watch(engineRef, async (engine) => {
       if (!engine || started) return
       started = true
-      const s = await factory(engine)
+      let s: T
+      try {
+        s = await factory(engine)
+      } catch (err) {
+        // A failed stage (data or module not loading) must not keep the loading screen up forever.
+        console.error('[space] stage failed to start', err)
+        settle()
+        return
+      }
       // The page may have been left while the stage module was downloading.
       if (!alive || engineRef.value !== engine) {
         s.dispose()
+        settle()
         return
       }
       engine.setStage(s)
+      engine.afterNextFrame(settle)
       stage.value = s
     }, { immediate: true })
   })
 
   onBeforeUnmount(() => {
     alive = false
+    settle()
     stop?.()
     const engine = engineRef.value
     if (engine && stage.value && engine.currentStage === stage.value) engine.clearStage()

@@ -7,7 +7,7 @@
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
-const { status, engine } = useSpace()
+const { status, boot, engine } = useSpace()
 let mq: MediaQueryList | null = null
 
 function onMotionChange(): void {
@@ -25,12 +25,20 @@ onMounted(async () => {
   try {
     // Dynamic import: Three.js never reaches the server bundle nor blocks the first paint.
     const { Engine } = await import('~/engine/Engine')
+    boot.value.engine = true
     if (!Engine.isSupported()) {
       status.value = 'unsupported'
       return
     }
     const instance = new Engine(el, {
       onFirstFrame: () => { status.value = 'ready' },
+      onBoot: (step) => {
+        if (step === 'shaders') boot.value.shaders.ready = true
+        else boot.value[step] = true
+      },
+      onShaders: (done, total) => {
+        boot.value.shaders = { done, total, ready: done >= total }
+      },
       onError: () => { status.value = 'error' },
     })
     mq = window.matchMedia(REDUCED_MOTION_QUERY)

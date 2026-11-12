@@ -1,6 +1,6 @@
 {
   "site": {
-    "name": "Observatoire",
+    "name": "Observatory",
     "tagline": "procedural planets and real systems"
   },
   "a11y": {
@@ -524,5 +524,16 @@
     "outsideFigure": "outside the figure",
     "tooltip": "{name} · {d} ly",
     "dataNote": "Distances from Hipparcos and Gaia parallaxes (HYG database): beyond a few hundred light-years the uncertainty can exceed 20%."
+  },
+  "boot": {
+    "progress": "{p}%",
+    "steps": {
+      "fonts": "Fonts",
+      "engine": "3D engine (Three.js)",
+      "gpu": "Graphics card",
+      "sky": "Starry sky",
+      "shaders": "Compiling shaders",
+      "stage": "First frame of the scene"
+    }
   }
 }

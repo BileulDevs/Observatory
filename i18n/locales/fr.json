@@ -1,6 +1,6 @@
 {
   "site": {
-    "name": "Observatoire",
+    "name": "Observatory",
     "tagline": "planètes procédurales et systèmes réels"
   },
   "a11y": {
@@ -524,5 +524,16 @@
     "outsideFigure": "hors figure",
     "tooltip": "{name} · {d} a.l.",
     "dataNote": "Distances tirées des parallaxes Hipparcos et Gaia (base HYG) : au-delà de quelques centaines d'années-lumière, l'incertitude peut dépasser 20 %."
+  },
+  "boot": {
+    "progress": "{p} %",
+    "steps": {
+      "fonts": "Polices",
+      "engine": "Moteur 3D (Three.js)",
+      "gpu": "Carte graphique",
+      "sky": "Ciel étoilé",
+      "shaders": "Compilation des shaders",
+      "stage": "Première image de la scène"
+    }
   }
 }

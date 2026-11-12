@@ -1,5 +1,6 @@
 import {
   ACESFilmicToneMapping, HalfFloatType, PerspectiveCamera, Scene, Vector2, WebGLRenderer, WebGLRenderTarget,
+  type Material,
 } from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
@@ -16,9 +17,19 @@ import type { Stage, StageContext, ViewShift } from './stages/Stage'
 
 export type { ViewShift } from './stages/Stage'
 
+/** Start-up milestones, reported as they really happen (the loading screen lists them). */
+export type BootStep = 'gpu' | 'sky' | 'shaders' | 'frame'
+
 export interface EngineEvents {
   /** First frame rendered: the canvas can fade in. */
   onFirstFrame?: () => void
+  /** A start-up milestone was reached. */
+  onBoot?: (step: BootStep) => void
+  /**
+   * Shader programs of the current scene: how many are compiled out of how many. Reported while a stage warms up
+   * (after start-up too: a page with new objects compiles its own shaders before its first frame).
+   */
+  onShaders?: (done: number, total: number) => void
   /** Unrecoverable problem (context lost...). The page must keep working without the canvas. */
   onError?: (reason: 'context-lost') => void
 }
@@ -37,6 +48,12 @@ const MAX_DT = 0.1
  * zoom = aspect × PORTRAIT_FIT, capped at 1. Higher = bigger planet on phones.
  */
 const PORTRAIT_FIT = 1.25
+/**
+ * Pixels baked per frame by tier (see CubeBaker). A 2048 planet is ~25 M texels of heavy noise: 1 M per frame
+ * is invisible on a desktop GPU but costs 50–100 ms on integrated ones, which reads as a freeze. Lower = smoother
+ * frames, longer until full resolution.
+ */
+const BAKE_STEP_PIXELS = { high: 1 << 20, medium: 1 << 19, low: 1 << 18 } as const
 
 /**
  * Owns the WebGL renderer, post-processing, the shared backdrop and the frame loop.
@@ -74,11 +91,22 @@ export class Engine {
   private fps = 0
   private lastRenderAt = 0
   private disposed = false
+  /**
+   * Materials being compiled before the next frame may be drawn. Drawing earlier would make three compile
+   * them synchronously inside the frame: on Windows (ANGLE → Direct3D) the planet's shaders alone can then
+   * block the page for seconds. Null when nothing is pending.
+   */
+  private warming: { pending: Set<Material>; total: number } | null = null
+  /** Callbacks to run once the next frame has actually been drawn. */
+  private afterFrame: (() => void)[] = []
 
   /** True when WebGL2 is available. Call before constructing, to show the static fallback instead. */
   static isSupported(): boolean {
     try {
-      return !!document.createElement('canvas').getContext('webgl2')
+      const gl = document.createElement('canvas').getContext('webgl2')
+      // Release the probe context at once: browsers cap live contexts (~16) and drop the oldest past that.
+      gl?.getExtension('WEBGL_lose_context')?.loseContext()
+      return !!gl
     } catch {
       return false
     }
@@ -91,6 +119,7 @@ export class Engine {
     this.renderer.toneMapping = ACESFilmicToneMapping
     this.renderer.setClearColor(0x000000, 1)
     this.quality = detectQuality(this.renderer.getContext() as WebGL2RenderingContext)
+    this.events.onBoot?.('gpu')
 
     const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: this.quality.msaa })
     this.composer = new EffectComposer(this.renderer, target)
@@ -105,9 +134,10 @@ export class Engine {
     this.finish.uniforms.uVig!.value = VIGNETTE
     this.composer.addPass(this.finish)
 
-    this.baker = new CubeBaker(this.renderer)
+    this.baker = new CubeBaker(this.renderer, BAKE_STEP_PIXELS[this.quality.tier])
     this.backdrop = new Backdrop(this.baker, this.quality.starCount)
     this.scene.add(this.backdrop.root)
+    this.events.onBoot?.('sky')
 
     // Getters keep the context live: stages always read the current values, never a stale copy.
     const engine = this
@@ -131,6 +161,7 @@ export class Engine {
     canvas.addEventListener('webglcontextlost', this.onContextLost)
     window.addEventListener('resize', this.onResize)
     this.resize()
+    this.warmUp()
     this.start()
   }
 
@@ -143,6 +174,47 @@ export class Engine {
     this.scene.add(stage.root)
     stage.attach(this.context)
     stage.setActive?.(this.active)
+    this.warmUp()
+    this.wake()
+  }
+
+  /**
+   * Starts compiling every material now in the scene, without drawing. With KHR_parallel_shader_compile the
+   * driver compiles in the background and frames resume when all report ready; without it, the compile still
+   * happens here, before the first frame, where the loading screen (CSS-animated, so it keeps moving) covers it.
+   * Materials created later (models arriving, a body rebuilt) compile on first use as usual.
+   */
+  private warmUp(): void {
+    // Compile against the target the scene is really drawn into (the composer's HDR buffer): three's program
+    // key includes tone mapping and output colour space, which differ between that buffer and the screen, so
+    // compiling for the screen would leave the real programs to be built in the first frame anyway.
+    const previous = this.renderer.getRenderTarget()
+    this.renderer.setRenderTarget(this.composer.readBuffer)
+    const compiled = this.renderer.compile(this.scene, this.camera)
+    this.renderer.setRenderTarget(previous)
+    const pending = new Set<Material>(compiled)
+    this.warming = { pending, total: pending.size }
+    this.pollWarm()
+  }
+
+  /** Drops the materials whose program is ready; true while some are still compiling. */
+  private pollWarm(): boolean {
+    const w = this.warming
+    if (!w) return false
+    for (const m of w.pending) {
+      const program = (this.renderer.properties.get(m) as { currentProgram?: { isReady(): boolean } }).currentProgram
+      if (!program || program.isReady()) w.pending.delete(m)
+    }
+    this.events.onShaders?.(w.total - w.pending.size, w.total)
+    if (w.pending.size > 0) return true
+    this.warming = null
+    this.events.onBoot?.('shaders')
+    return false
+  }
+
+  /** Runs `cb` once the next frame has been drawn (after any pending shader compilation). */
+  afterNextFrame(cb: () => void): void {
+    this.afterFrame.push(cb)
     this.wake()
   }
 
@@ -262,6 +334,12 @@ export class Engine {
     this.last = now
     this.inFrame = true
 
+    // Shaders still compiling in the background: wait, without drawing (that would compile them synchronously).
+    if (this.pollWarm()) {
+      this.inFrame = false
+      this.raf = requestAnimationFrame(this.frame)
+      return
+    }
     if (this.baker.busy) {
       this.baker.step()
       this.dirty = true
@@ -284,7 +362,13 @@ export class Engine {
       }
       if (this.firstFrame) {
         this.firstFrame = false
+        this.events.onBoot?.('frame')
         this.events.onFirstFrame?.()
+      }
+      if (this.afterFrame.length) {
+        const callbacks = this.afterFrame
+        this.afterFrame = []
+        callbacks.forEach((cb) => cb())
       }
     }
 

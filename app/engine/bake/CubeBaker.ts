@@ -37,8 +37,9 @@ interface InternalJob extends BakeJob {
 }
 
 /**
- * Pixels rendered per step. One strip of ~1M pixels stays well under a frame budget on a desktop GPU and far
- * from the ~2 s watchdog that resets the GPU on Windows. Raising it shortens loading but causes visible hitches.
+ * Default pixels rendered per step. One strip of ~1M pixels stays well under a frame budget on a desktop GPU and
+ * far from the ~2 s watchdog that resets the GPU on Windows. Raising it shortens loading but causes visible
+ * hitches. The engine passes a smaller budget on weaker tiers.
  */
 const PIXELS_PER_STEP = 1 << 20
 /** Noise frequency cap per texel, see `uMaxFreq` in the bake shader. Higher = crisper but grainier. */
@@ -66,7 +67,7 @@ export class CubeBaker {
   private readonly placeholder = new WebGLCubeRenderTarget(4)
   private queue: InternalJob[] = []
 
-  constructor(renderer: WebGLRenderer) {
+  constructor(renderer: WebGLRenderer, private readonly pixelsPerStep = PIXELS_PER_STEP) {
     this.renderer = renderer
     this.scene.add(new Mesh(this.geometry, this.material))
     this.cubeCamera = new CubeCamera(0.1, 10, this.placeholder)
@@ -142,7 +143,7 @@ export class CubeBaker {
 
   private plan(target: WebGLCubeRenderTarget, pass: BakePass, type: number, seed: Vector3): BakeStep[] {
     const size = target.width
-    const rows = Math.max(1, Math.min(size, Math.floor(PIXELS_PER_STEP / size)))
+    const rows = Math.max(1, Math.min(size, Math.floor(this.pixelsPerStep / size)))
     const steps: BakeStep[] = []
     for (let face = 0; face < 6; face++) {
       for (let y = 0; y < size; y += rows) {

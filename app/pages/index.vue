@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Observatoire: one procedural planet with every art-direction control (prototype 01, productised).
+ * Home (the planet observatory): one procedural planet with every art-direction control (prototype 01, productised).
  * The page is a thin UI layer; all rendering lives in ObservatoryStage.
  */
 import { ART_STYLES, PLANET_TYPES, STYLE_PARAMS, type ArtStyle, type PlanetType } from '~/engine/presets'

@@ -143,8 +143,10 @@ export class ObservatoryStage implements Stage {
     if (progress) this.events.onProgress?.(progress)
     const render = spin || moved
     if (render) queueMicrotask(() => this.events.onFrame?.())
-    // Damping needs frames after the pointer is released, so the loop keeps ticking while controls exist.
-    return { render, animating: true }
+    // Keep the loop alive only while something moves: update() reports damping motion as `moved` until it
+    // settles, and a new drag restarts the loop through the controls' change event. Returning true here kept
+    // the loop (and this method) running 60 times a second on an idle, paused planet.
+    return { render, animating: render }
   }
 
   dispose(): void {

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 /** App shell: skip link, persistent 3D layer, header, and the page as an overlay above the canvas. */
 const { status } = useSpace()
+// Without JavaScript nothing would ever load: drop the loading screen. In the head, as a <noscript> style: a
+// <noscript> in the body is re-created by Vue's hydration, and its <style> then applies with scripts on.
+useHead({ noscript: [{ innerHTML: '<style>.boot { display: none !important; }</style>' }] })
 </script>
 
 <template>
@@ -8,6 +11,8 @@ const { status } = useSpace()
     <a class="skip-link" href="#main">{{ $t('a11y.skip') }}</a>
     <!-- ClientOnly rather than a .client.vue file: with the suffix, onMounted runs before the canvas exists during hydration. -->
     <ClientOnly><SpaceCanvas /></ClientOnly>
+    <!-- Server-rendered so it covers the very first paint (hidden without JavaScript: see useHead below). -->
+    <LoadingScreen />
     <SiteHeader />
     <main id="main" class="shell__main" tabindex="-1">
       <slot />
