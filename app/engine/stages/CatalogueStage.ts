@@ -40,8 +40,11 @@ const THUMB_STAR_BOOST = 1.25
 const HOVER_SPEED = 4
 /** Planets created per frame while the catalogue opens: spreads the preview bakes, no visible freeze. */
 const PLANETS_PER_FRAME = 3
-/** Thumbnail bodies use the instant preview bake only. 128 is plenty for a sphere a few dozen pixels wide. */
-const THUMB_BAKE_RES = 128
+/**
+ * Full bake per thumbnail body, at this cube-face size: a tile shows its system only once every planet is at
+ * full detail. 256 is plenty for a sphere a few dozen pixels wide; more lengthens the catalogue's loading.
+ */
+const THUMB_BAKE_RES = 256
 /** Atmosphere ray-march steps for thumbnails: the shells are tiny on screen. */
 const THUMB_ATMOSPHERE_STEPS = 6
 
@@ -49,6 +52,8 @@ interface ThumbPlanet {
   body: SystemBody
   planet: Planet | null
   radius: number
+  /** Full bake landed (or the photographic map loaded): the planet is shown in its final detail. */
+  baked: boolean
 }
 
 interface Thumb {
@@ -94,7 +99,7 @@ export class CatalogueStage implements Stage {
       this.thumbs.push({
         system, group, outer, time: 0, ready: false, star: null,
         camera: new PerspectiveCamera(THUMB_FOV, 2, 0.1, THUMB_FAR),
-        planets: system.bodies.map((body, j) => ({ body, planet: null, radius: thumbRadius(system.bodies, j) })),
+        planets: system.bodies.map((body, j) => ({ body, planet: null, radius: thumbRadius(system.bodies, j), baked: false })),
       })
       this.root.add(group)
     })
@@ -156,6 +161,8 @@ export class CatalogueStage implements Stage {
     const fullH = target ? target.height : canvasRect.height * pr
 
     for (const thumb of this.thumbs) {
+      // Not drawn until every planet has its full bake: the tile shows "Loading…" until then, never placeholders.
+      if (!thumb.ready) continue
       const el = this.elementOf(thumb.system.id)
       if (!el) continue
       const r = el.getBoundingClientRect()
@@ -227,14 +234,17 @@ export class CatalogueStage implements Stage {
     for (let n = 0; n < PLANETS_PER_FRAME && this.pending.length; n++) {
       const { thumb, index } = this.pending.shift()!
       const tp = thumb.planets[index]!
-      const planet = new Planet(ctx.baker, { bakeRes: THUMB_BAKE_RES, atmosphereSteps: THUMB_ATMOSPHERE_STEPS, previewOnly: true })
+      const planet = new Planet(ctx.baker, { bakeRes: THUMB_BAKE_RES, atmosphereSteps: THUMB_ATMOSPHERE_STEPS })
       planet.setStyle('natural')
       planet.setScale(tp.radius)
       planet.setLightTint(blackbodyColor(thumb.system.star.temperatureK))
-      planet.setSpec(tp.body.render, undefined, () => ctx.invalidate())
+      planet.setSpec(tp.body.render, undefined, () => {
+        tp.baked = true
+        ctx.invalidate()
+        if (thumb.planets.every((p) => p.baked)) this.markReady(thumb)
+      })
       thumb.group.add(planet.root)
       tp.planet = planet
-      if (thumb.planets.every((p) => p.planet)) this.markReady(thumb)
     }
   }
 

@@ -22,6 +22,11 @@ varying vec3 vColor;
 void main(){
   vColor = aColor * uI;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // Pinned to the far plane: the star shell is only STAR_RADIUS away, so anything drawn beyond it (a backdrop
+  // Earth or Moon thousands of units out) failed the depth test against nothing and the stars, drawn after the
+  // opaque objects, showed through it. Just inside the far plane every surface occludes them (any object closer
+  // than near × 1e6). Exactly w would let float rounding clip some stars at random: they would flicker.
+  gl_Position.z = gl_Position.w * 0.999999;
   gl_PointSize = aSize * uPR;
 }
 `

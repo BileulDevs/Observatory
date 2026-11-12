@@ -25,7 +25,7 @@ function constellationRoutes(): string[] {
 const SITE_URL = 'https://observatoire.example' // ← replace with the final domain
 
 export default defineNuxtConfig({
-  ssr: true,
+  ssr: false,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 

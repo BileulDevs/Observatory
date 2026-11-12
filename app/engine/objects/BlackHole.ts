@@ -8,10 +8,20 @@ import { Star } from '../bodies/Star'
 import { mulberry32 } from '../core/random'
 import { BLACKHOLE_FRAG, BLACKHOLE_VERT, JET_FRAG, JET_VERT, STREAM_FRAG, STREAM_VERT } from '../shaders/blackhole'
 import { GLOW_FRAG, GLOW_VERT } from '../shaders/galaxy'
+import { facingPoint } from './anchors'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 
 type BlackHoleRender = Extract<ObjectRender, { kind: 'black-hole' }>
 
+/**
+ * Apparent radius of the shadow's edge (the photon ring) as seen from far away, in Schwarzschild radii:
+ * √27 / 2 ≈ 2.6 for a non-rotating hole.
+ */
+const PHOTON_RING_APPARENT = 2.6
+/** Shadow marker, as a share of the shadow's apparent radius: well inside the dark disc, clear of the centre. */
+const SHADOW_MARK = 0.6
+/** Height of the lensed image of the disk's far side over the hole, rs: the arc that makes the "Interstellar" look. */
+const LENSED_ARC_HEIGHT = 3.4
 /** Inner disk edge: the innermost stable circular orbit of a non-rotating hole, 3 rs. */
 const DISK_INNER = 3
 /** Lensing sphere radius relative to the disk's outer edge. Larger = straighter rays at the edge, more pixels traced. */
@@ -50,8 +60,13 @@ export class BlackHole implements SpaceBody {
   private readonly host: Mesh<PlaneGeometry, ShaderMaterial> | null = null
   private readonly parentQ = new Quaternion()
   private readonly invLocal = new Matrix4()
+  private readonly render: BlackHoleRender
+  private readonly center = new Vector3()
+  private readonly side = new Vector3()
+  private readonly tmp = new Vector3()
 
   constructor(render: BlackHoleRender, ctx: BodyContext) {
+    this.render = render
     const lensRadius = render.diskOuter * LENS_MARGIN
     const steps = ctx.preview ? STEPS.preview : ctx.quality.tier === 'low' ? STEPS.low : STEPS.high
     this.lensU = {
@@ -145,6 +160,37 @@ export class BlackHole implements SpaceBody {
     }
   }
 
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    const r = this.render
+    this.root.getWorldPosition(this.center)
+    // Horizontal direction towards the right of the screen: disk points there are clear of the fact panel.
+    this.side.subVectors(camera.position, this.center).cross(UP).normalize().negate()
+    const inner = r.diskInner ?? DISK_INNER
+    switch (key) {
+      // The centre is the singularity's; the shadow's marker sits inside the dark disc, up and to the left.
+      case 'singularity': return out.copy(this.center)
+      case 'shadow': return facingPoint(this.center, PHOTON_RING_APPARENT * SHADOW_MARK, camera, 90, -45, out)
+      case 'photon-ring': return facingPoint(this.center, PHOTON_RING_APPARENT, camera, 90, 45, out)
+      case 'disk': return out.copy(this.center).addScaledVector(this.side, (inner + r.diskOuter) * 0.55)
+      case 'inner-edge': return out.copy(this.center).addScaledVector(this.side, inner)
+      case 'lensed-arc': return out.copy(this.center).addScaledVector(UP, LENSED_ARC_HEIGHT)
+      case 'jet': return r.jets ? out.copy(this.center).addScaledVector(UP, r.diskOuter * JET_LENGTH * 0.45) : null
+      case 'companion':
+        return this.companion && r.companion
+          ? this.companion.root.getWorldPosition(out).addScaledVector(UP, r.companion.radius * 0.8)
+          : null
+      case 'stream': {
+        if (!this.companion) return null
+        // Halfway along the gas stream, from the star to the disk's rim.
+        this.companion.root.getWorldPosition(out)
+        const rim = this.tmp.copy(out).sub(this.center).setLength(r.diskOuter).add(this.center)
+        return out.lerp(rim, 0.5)
+      }
+      case 'host': return r.host ? out.copy(this.center).addScaledVector(this.side, r.host.radius * 0.5) : null
+      default: return null
+    }
+  }
+
   dispose(): void {
     this.lens.geometry.dispose()
     this.lens.material.dispose()
@@ -199,3 +245,5 @@ function buildStream(star: Vector3, starRadius: number, diskOuter: number, seed:
     transparent: true, depthWrite: false, blending: AdditiveBlending,
   }))
 }
+
+const UP = new Vector3(0, 1, 0)

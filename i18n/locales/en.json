@@ -73,7 +73,6 @@
     "reseed": "New seed",
     "spin": "Rotation",
     "spinStopped": "Rotation (stopped)",
-    "marker": "Marker 01",
     "hint": "Drag to orbit · scroll to zoom"
   },
   "systems": {
@@ -127,7 +126,8 @@
     "moonFictional": "Fictional moon of {planet}",
     "prevMoon": "Previous moon",
     "nextMoon": "Next moon",
-    "hintMoons": "Click a moon to inspect it"
+    "hintMoons": "Click a moon to inspect it",
+    "loading": "Loading…"
   },
   "facts": {
     "radius": "Radius",
@@ -204,6 +204,11 @@
     "notFound": "This object does not exist.",
     "pause": "Pause",
     "play": "Play",
+    "goToMarker": "Go to marker: {name}",
+    "markersHint": "Click a marker in the scene or in this list.",
+    "closeMarker": "Close the marker sheet",
+    "markers": "Markers",
+    "marker": "Marker {n}",
     "hint": "Drag to rotate · scroll to zoom",
     "derived": "computed",
     "big": {
@@ -577,8 +582,29 @@
     },
     "sources": "Sources",
     "close": "Close",
-    "keys": "← → steps · Space pause · Esc close",
+    "keys": "← → steps · Space pause · C recenter · Esc close",
     "notFound": "Unknown exploit",
-    "marker": "Marker {n}"
+    "marker": "Marker {n}",
+    "recenter": "Recenter the camera",
+    "autoplay": "Play the steps in a row",
+    "autoplayOn": "Steps play in a row",
+    "autoplayOff": "Stop at the end of each step"
+  },
+  "error": {
+    "home": "Back to the observatory",
+    "back": "Go back",
+    "lost": {
+      "eyebrow": "Error 404 · signal lost",
+      "title": "Lost in the void.",
+      "body": "This address leads nowhere: no star, no planet, only the dark between galaxies. The tether snapped, but the observatory is not far.",
+      "positionLabel": "Last known position:",
+      "signalLabel": "Signal:",
+      "signalValue": "no response"
+    },
+    "generic": {
+      "eyebrow": "Error {status}",
+      "title": "Something broke on board.",
+      "body": "Something went wrong while loading this page. Try again from the observatory."
+    }
   }
 }

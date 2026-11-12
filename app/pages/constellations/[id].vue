@@ -20,6 +20,13 @@ const { tl, num } = useLocalized()
 const localePath = useLocalePath()
 const { sheet } = useStarSheet()
 
+// Unknown ids are rejected by the router, before the page is created. Throwing from setup alone is not enough:
+// in dev builds Vue still renders the template after a setup error, and the template then reads fields of an
+// undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
+definePageMeta({
+  validate: (route) => CONSTELLATIONS.some((c) => c.id === String(route.params.id)),
+})
+
 const summary = CONSTELLATIONS.find((c) => c.id === String(route.params.id))
 if (!summary) throw createError({ statusCode: 404, statusMessage: t('constellations.notFound'), fatal: true })
 

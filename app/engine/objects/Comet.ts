@@ -7,12 +7,17 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { fbm3 } from '../core/noise'
 import { COMA_FRAG, DUST_TAIL_FRAG, ION_TAIL_FRAG, TAIL_VERT } from '../shaders/comet'
 import { GLOW_VERT } from '../shaders/galaxy'
+import { facingPoint } from './anchors'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 import { loadGlb } from './gltf'
 import { addSurfaceDetail } from './surfaceDetail'
 
 type CometRender = Extract<ObjectRender, { kind: 'comet' }>
 
+/** Marker positions: along the ion tail and the dust tail (share of the tail length), out in the coma (nucleus radii). */
+const ION_MARK = 0.55
+const DUST_MARK = 0.45
+const COMA_MARK = 3.2
 /** Nucleus radius in world units. Tails are hundreds of thousands of times longer in reality; here ~30×. */
 const NUCLEUS_RADIUS = 0.35
 /**
@@ -67,6 +72,9 @@ export class Comet implements SpaceBody {
   private readonly ionU: { uColor: { value: Color }; uI: { value: number }; uTime: { value: number } }
   private readonly parentQ = new Quaternion()
   private readonly spinAxis = new Vector3(0.3, 1, 0.1).normalize()
+  /** Marker points in the root's frame, from the tail geometry; the coma's is placed from the camera. */
+  private readonly marks = new Map<string, Vector3>()
+  private readonly center = new Vector3()
   private disposed = false
 
   constructor(render: CometRender, ctx: BodyContext) {
@@ -146,6 +154,17 @@ export class Comet implements SpaceBody {
       this.addTail(spike)
     }
 
+    // Markers: the ion tail straight down the anti-sun line; the dust tail on its fan's centre line, which bends
+    // back along the orbit (buildFan); the anti-tail along its spike.
+    if (render.ionTail > 0) this.marks.set('ion-tail', tailDir.clone().multiplyScalar(length * ION_MARK))
+    if (render.dustTail > 0) {
+      const s = DUST_MARK
+      this.marks.set('dust-tail', tailDir.clone().multiplyScalar(length * s).addScaledVector(motion, -length * 0.38 * s * s))
+    }
+    if (render.antiTail) {
+      this.marks.set('anti-tail', ctx.sunDir.clone().addScaledVector(motion, 0.25).normalize().multiplyScalar(length * 0.3))
+    }
+
     // Seen from -z the anti-sun side is on the right of the screen, away from the fact panel.
     if (render.tail <= NUCLEUS_FOCUS_TAIL) {
       // Short-tailed comets (67P, 3I) are about their nucleus: frame the head. The nucleus spins (one turn in
@@ -174,6 +193,20 @@ export class Comet implements SpaceBody {
     this.root.updateWorldMatrix(true, false)
     this.root.getWorldQuaternion(this.parentQ).invert()
     this.coma.quaternion.copy(camera.quaternion).premultiply(this.parentQ)
+  }
+
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    this.root.updateWorldMatrix(true, false)
+    this.root.getWorldPosition(this.center)
+    switch (key) {
+      // The nucleus is small and turning: the marker aims at its centre, which is always inside it.
+      case 'nucleus': return out.copy(this.center)
+      case 'coma': return facingPoint(this.center, NUCLEUS_RADIUS * COMA_MARK, camera, 90, -30, out)
+      default: {
+        const p = this.marks.get(key)
+        return p ? this.root.localToWorld(out.copy(p)) : null
+      }
+    }
   }
 
   dispose(): void {

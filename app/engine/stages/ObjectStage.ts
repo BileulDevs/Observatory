@@ -2,6 +2,7 @@ import { Group, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { ObjectRender } from '~/types/objects'
 import { easeInOutCubic, Tween } from '../core/tween'
+import { isAnchorKey } from '../objects/anchors'
 import { createBody } from '../objects/createBody'
 import { createLights, SUN_DIRECTION } from '../objects/lighting'
 import type { SpaceBody } from '../objects/types'
@@ -14,10 +15,20 @@ export interface ObjectStageOptions {
   distanceScale?: number
 }
 
+export interface ObjectStageEvents {
+  /** A frame with a moved camera or object is about to be drawn: re-place the HTML markers. */
+  onFrame?(): void
+}
+
 /** Zoom-out limit, in default viewing distances. */
 const MAX_ZOOM_OUT = 3
 /** Recentre flight duration, seconds. */
 const RECENTER_DURATION = 1.1
+/**
+ * Distance the camera comes to when flying to a marker, as a share of the default viewing distance. Lower = closer
+ * on the feature (and less context around it); never closer than 1.5 × the zoom-in limit.
+ */
+const MARKER_VIEW_SHARE = 0.4
 
 /**
  * Full-screen view of one catalogue object: the body at the origin, orbit/zoom controls around it, and a play /
@@ -34,8 +45,11 @@ export class ObjectStage implements Stage {
   private playing = true
   private tween: Tween | null = null
   private readonly focus = new Vector3()
+  private readonly tmp = new Vector3()
+  /** Markers must be re-projected on the next update (canvas resized, layout changed). */
+  private overlayStale = false
 
-  constructor(private render: ObjectRender, private opts: ObjectStageOptions) {}
+  constructor(private render: ObjectRender, private opts: ObjectStageOptions, private readonly events: ObjectStageEvents = {}) {}
 
   attach(ctx: StageContext): void {
     this.ctx = ctx
@@ -113,6 +127,7 @@ export class ObjectStage implements Stage {
    */
   setLayout(opts: ObjectStageOptions): void {
     this.opts = opts
+    this.overlayStale = true
     this.ctx?.setViewShift(opts.shift)
     if (this.body) this.fitControls(this.body)
   }
@@ -121,14 +136,78 @@ export class ObjectStage implements Stage {
   recenter(): void {
     const ctx = this.ctx
     if (!ctx || !this.controls) return
-    const from = ctx.camera.position.clone()
-    const to = this.home(new Vector3())
+    this.flyTo(this.home(new Vector3()), this.focus)
+  }
+
+  /**
+   * Flies the camera to one of the body's marker points: the orbit centre moves onto it and the camera comes in
+   * along its current line of sight, so the feature ends up centred and seen from the same side. The point is
+   * taken at the moment of the click (a turning body carries it on). False when the point is not available.
+   */
+  focusMarker(key: string): boolean {
+    const ctx = this.ctx
+    const body = this.body
+    const c = this.controls
+    if (!ctx || !body || !c) return false
+    const target = body.anchor(key, ctx.camera, new Vector3())
+    if (!target) return false
+    const distance = Math.max(
+      body.radius * body.view.distance * (this.opts.distanceScale ?? 1) * MARKER_VIEW_SHARE,
+      c.minDistance * 1.5,
+    )
+    const dir = ctx.camera.position.clone().sub(target)
+    // Camera already on the point (cannot happen through the controls' zoom limit, but guard the normalise).
+    if (dir.lengthSq() < 1e-9) dir.set(0, 0, 1)
+    this.flyTo(dir.setLength(distance).add(target), target)
+    return true
+  }
+
+  /** Moves camera and orbit centre together from where they are, eased; instant with reduced motion. */
+  private flyTo(position: Vector3, target: Vector3): void {
+    const ctx = this.ctx
+    const c = this.controls
+    if (!ctx || !c) return
+    const fromPos = ctx.camera.position.clone()
+    const fromTarget = c.target.clone()
+    const toPos = position.clone()
+    const toTarget = target.clone()
     this.tween?.cancel()
     this.tween = new Tween(ctx.reducedMotion ? 0 : RECENTER_DURATION, (k) => {
-      ctx.camera.position.lerpVectors(from, to, k)
-      this.controls?.target.copy(this.focus)
+      ctx.camera.position.lerpVectors(fromPos, toPos, k)
+      c.target.lerpVectors(fromTarget, toTarget, k)
     }, easeInOutCubic)
     ctx.invalidate()
+  }
+
+  /**
+   * Screen position (CSS pixels, canvas-relative) of one of the body's marker points, or null when the body has
+   * no such point, it is hidden, or it is behind the camera.
+   */
+  project(key: string): { x: number; y: number } | null {
+    const ctx = this.ctx
+    const body = this.body
+    if (!ctx || !body) return null
+    const p = body.anchor(key, ctx.camera, this.tmp)
+    if (!p) return null
+    p.project(ctx.camera)
+    if (p.z > 1 || p.z < -1) return null
+    const rect = ctx.canvas.getBoundingClientRect()
+    return { x: (p.x * 0.5 + 0.5) * rect.width, y: (-p.y * 0.5 + 0.5) * rect.height }
+  }
+
+  /** Marker keys this object's renderer does not know (a typo in the data): their markers would never show. */
+  unknownAnchors(keys: readonly string[]): string[] {
+    return keys.filter((k) => !isAnchorKey(this.render.kind, k))
+  }
+
+  /** The markers were switched on or the layout moved: place them on the next update even if nothing moves. */
+  refreshOverlay(): void {
+    this.overlayStale = true
+    this.ctx?.invalidate()
+  }
+
+  resized(): void {
+    this.overlayStale = true
   }
 
   setPlaying(playing: boolean): void {
@@ -149,6 +228,12 @@ export class ObjectStage implements Stage {
     this.time += step
     body.update(step, this.time, ctx.camera)
     if (moving) render = true
+    if (render || this.overlayStale) {
+      this.overlayStale = false
+      // Markers are projected before the frame is drawn: the camera matrices must already be current.
+      ctx.camera.updateMatrixWorld()
+      this.events.onFrame?.()
+    }
     return { render, animating: moving }
   }
 

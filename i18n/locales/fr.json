@@ -73,7 +73,6 @@
     "reseed": "Nouvelle graine",
     "spin": "Rotation",
     "spinStopped": "Rotation (arrêtée)",
-    "marker": "Repère 01",
     "hint": "Glisser pour orbiter · molette pour s'approcher"
   },
   "systems": {
@@ -127,7 +126,8 @@
     "moonFictional": "Lune fictive de {planet}",
     "prevMoon": "Lune précédente",
     "nextMoon": "Lune suivante",
-    "hintMoons": "Clic sur une lune pour l'inspecter"
+    "hintMoons": "Clic sur une lune pour l'inspecter",
+    "loading": "Chargement…"
   },
   "facts": {
     "radius": "Rayon",
@@ -204,6 +204,11 @@
     "notFound": "Cet objet n'existe pas.",
     "pause": "Mettre en pause",
     "play": "Reprendre",
+    "goToMarker": "Aller au repère : {name}",
+    "markersHint": "Cliquez un repère dans la scène ou dans cette liste.",
+    "closeMarker": "Fermer la fiche du repère",
+    "markers": "Repères",
+    "marker": "Repère {n}",
     "hint": "Glisser pour tourner · molette pour zoomer",
     "derived": "calculé",
     "big": {
@@ -577,8 +582,29 @@
     },
     "sources": "Sources",
     "close": "Fermer",
-    "keys": "← → étapes · Espace pause · Échap fermer",
+    "keys": "← → étapes · Espace pause · C recentrer · Échap fermer",
     "notFound": "Exploit introuvable",
-    "marker": "Repère {n}"
+    "marker": "Repère {n}",
+    "recenter": "Recentrer la caméra",
+    "autoplay": "Enchaîner les étapes",
+    "autoplayOn": "Les étapes s'enchaînent",
+    "autoplayOff": "Arrêt à la fin de chaque étape"
+  },
+  "error": {
+    "home": "Retour à l'observatoire",
+    "back": "Revenir en arrière",
+    "lost": {
+      "eyebrow": "Erreur 404 · signal perdu",
+      "title": "Perdu dans le vide.",
+      "body": "Cette adresse ne mène nulle part : pas d'étoile, pas de planète, seulement du noir entre les galaxies. Le cordon s'est rompu, mais l'observatoire n'est pas loin.",
+      "positionLabel": "Dernière position :",
+      "signalLabel": "Signal :",
+      "signalValue": "aucun retour"
+    },
+    "generic": {
+      "eyebrow": "Erreur {status}",
+      "title": "Une avarie à bord.",
+      "body": "Quelque chose s'est mal passé pendant le chargement de cette page. Réessaie depuis l'observatoire."
+    }
   }
 }

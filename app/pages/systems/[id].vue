@@ -5,6 +5,8 @@
  * survives a reload.
  */
 import { findSystem } from '~/data/catalog'
+import { isGeneratedId } from '~/data/generate'
+import { realSystems } from '~/data/systems'
 import { toStage } from '~/data/scale'
 import type { SystemLabel, SystemLayout, SystemStage as SystemStageType } from '~/engine/stages/SystemStage'
 import type { Localized } from '~/types/systems'
@@ -28,6 +30,17 @@ const { t } = useI18n()
 const { tl, num } = useLocalized()
 const localePath = useLocalePath()
 const { planetRows, starRows, moonRow, moonRows } = useFacts()
+
+// Unknown ids are rejected by the router, before the page is created. Throwing from setup alone is not enough:
+// in dev builds Vue still renders the template after a setup error, and the template then reads fields of an
+// undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
+definePageMeta({
+  // Cheap check on purpose: findSystem would build a whole generated system here only to throw it away.
+  validate: (route) => {
+    const id = String(route.params.id)
+    return isGeneratedId(id) || realSystems.some((s) => s.id === id)
+  },
+})
 
 const system = findSystem(String(route.params.id))
 if (!system) throw createError({ statusCode: 404, statusMessage: t('systems.notFound'), fatal: true })

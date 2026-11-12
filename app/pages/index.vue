@@ -150,7 +150,6 @@ useSeoMeta({
       :class="{ 'is-visible': marker.visible }"
       :x="marker.x"
       :y="marker.y"
-      :code="$t('observatory.marker')"
       :readout="`${num(MARKER_LAT, 1)}° N · ${num(MARKER_LON, 1)}° E`"
     />
 

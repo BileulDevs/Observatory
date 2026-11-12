@@ -58,7 +58,14 @@ export async function prepareForScene(
   // The camera only matters for its layers (which lights count); every camera here uses the default layer.
   const compiled = renderer.compileAsync(object, PREPARE_CAMERA, scene as Scene)
   renderer.setRenderTarget(previous)
-  await compiled
+  // Never wait forever: compileAsync polls each program until the driver reports it linked, and a program the
+  // driver never reports (seen with ANGLE/D3D on some steps) left the caller, and the page's step switch, stuck.
+  // On timeout the remaining programs are simply built at the first draw (a stutter, not a freeze).
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<'timeout'>((resolve) => { timer = setTimeout(() => resolve('timeout'), PREPARE_TIMEOUT_MS) })
+  const outcome = await Promise.race([compiled.then(() => 'done' as const), timeout])
+  clearTimeout(timer)
+  if (outcome === 'timeout') console.warn('[prepare] shader compilation still pending after', PREPARE_TIMEOUT_MS, 'ms; continuing')
   const textures = new Set<Texture>()
   object.traverse((o) => {
     const mesh = o as Mesh
@@ -71,3 +78,6 @@ export async function prepareForScene(
 }
 
 const PREPARE_CAMERA = new PerspectiveCamera()
+/** Longest wait for the shader programs of a new scene, ms. Longer only delays a stuck switch; shorter may cut a
+ * slow but healthy compile short (harmless: the rest compiles at the first draw). */
+const PREPARE_TIMEOUT_MS = 8000

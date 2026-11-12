@@ -48,6 +48,12 @@ export interface SpaceBody {
   /** Point the camera aims at, in the root's frame; the origin when absent. */
   readonly focus?: Vector3
   update(dt: number, time: number, camera: PerspectiveCamera): void
+  /**
+   * World position of a named point of the body for a marker (keys: ANCHOR_KEYS in anchors.ts), as of the last
+   * update; null when this body has no such part or the point is hidden behind it. Called every drawn frame
+   * while markers are shown: no allocation.
+   */
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null
   dispose(): void
 }
 

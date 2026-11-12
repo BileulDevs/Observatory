@@ -161,6 +161,20 @@ export type ObjectRender =
  */
 export type ObjectAppearance = 'texture' | 'model' | 'nasaModel' | 'simulation' | 'impression' | 'shapeModel' | 'measuredShape' | 'textureFilled' | 'computedColour'
 
+/**
+ * A labelled point on an object's 3D view ("Repères"): what is special about that part of it. Short texts: they
+ * sit on one line next to the marker.
+ */
+export interface ObjectMarker {
+  /** Named point of the object's renderer (ANCHOR_KEYS in engine/objects/anchors.ts). */
+  anchor: string
+  title: Localized
+  /** One line next to the marker in the scene. */
+  text: Localized
+  /** The sheet shown in the panel when the marker is chosen: what it is and why it matters, a few sentences. */
+  body: Localized
+}
+
 export interface SpaceObject {
   id: string
   category: ObjectCategory
@@ -170,6 +184,8 @@ export interface SpaceObject {
   description: Localized
   facts: ObjectFact[]
   render: ObjectRender
+  /** At least one: the feature the object is known for. */
+  markers: ObjectMarker[]
   appearance: ObjectAppearance
   sources: Source[]
 }

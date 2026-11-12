@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Catalogue of planetary systems: each tile is a live 3D miniature of its system (CatalogueStage draws them all
- * from one canvas), with a 2D version shown until it is ready or when WebGL is unavailable.
+ * from one canvas) once every planet has its full bake, "Loading…" until then; a 2D drawing when WebGL is unavailable.
  */
 import { featuredGenerated } from '~/data/catalog'
 import { GENERATED_PREFIX, MAX_SEED } from '~/data/generate'
@@ -19,6 +19,12 @@ const generated = featuredGenerated()
 const all = [...realSystems, ...generated]
 const views = new Map<string, HTMLElement>()
 const ready = ref(new Set<string>())
+/** Without WebGL the 2D drawings stand in for the miniatures; otherwise each tile waits on "Loading…". */
+const noWebgl = ref(false)
+onMounted(() => {
+  const probe = document.createElement('canvas')
+  noWebgl.value = !(probe.getContext('webgl2') ?? probe.getContext('webgl'))
+})
 
 function setView(id: string, el: unknown): void {
   if (el instanceof HTMLElement) views.set(id, el)
@@ -73,7 +79,8 @@ useSeoMeta({ title: () => t('systems.title'), description: () => t('systems.desc
               @blur="stage?.setHovered(null)"
             >
               <span :ref="(el) => setView(s.id, el)" class="tile__view" :class="{ 'is-live': ready.has(s.id) }">
-                <SystemThumb :system="s" />
+                <SystemThumb v-if="noWebgl" :system="s" />
+                <span v-else class="tile__loading mono" aria-hidden="true">{{ $t('systems.loading') }}</span>
               </span>
               <span class="tile__name">{{ tl(s.name) }}</span>
               <span class="tile__meta mono">{{ meta(s) }}</span>
@@ -122,6 +129,8 @@ useSeoMeta({ title: () => t('systems.title'), description: () => t('systems.desc
 /* 2:1, like the thumbnail cameras frame them. The WebGL miniature is drawn into exactly this rectangle. */
 .tile__view { display: block; aspect-ratio: 2 / 1; margin-bottom: 0.8rem; position: relative; }
 .tile__view :deep(.thumb) { transition: opacity 0.8s var(--ease-out); }
+.tile__loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 0.7rem; transition: opacity 0.6s; }
+.tile__view.is-live .tile__loading { opacity: 0; }
 .tile__view.is-live :deep(.thumb) { opacity: 0; }
 .tile__name { font: 400 1.9rem/1.05 var(--font-serif); transition: color 0.25s; }
 .tile:hover .tile__name, .tile:focus-visible .tile__name { color: var(--accent); }

@@ -7,7 +7,8 @@
 withDefaults(defineProps<{
   x: number
   y: number
-  code: string
+  /** First line ("Marker 01"); left out when the marker needs no number (a single target). */
+  code?: string
   /** Second line: what is marked. */
   title?: string
   /** Third line: a measured value or coordinates. */
@@ -18,7 +19,7 @@ withDefaults(defineProps<{
   active?: boolean
   /** Text on the left of the target (for targets on the left of a cluster, so labels do not overlap). */
   flip?: boolean
-}>(), { title: '', readout: '', open: true, active: false, flip: false })
+}>(), { code: '', title: '', readout: '', open: true, active: false, flip: false })
 </script>
 
 <template>
@@ -28,9 +29,10 @@ withDefaults(defineProps<{
     </svg>
     <span class="target__lead" />
     <span class="target__txt">
-      <b>{{ code }}</b>
-      <span v-if="title" class="target__title"><br>{{ title }}</span>
-      <span v-if="readout" class="target__readout"><br>{{ readout }}</span>
+      <!-- One block per line, so a missing line leaves no blank (a leading <br> did). -->
+      <b v-if="code" class="target__line">{{ code }}</b>
+      <span v-if="title" class="target__line target__title">{{ title }}</span>
+      <span v-if="readout" class="target__line target__readout">{{ readout }}</span>
     </span>
   </div>
 </template>
@@ -41,8 +43,9 @@ withDefaults(defineProps<{
 .target.is-active .target__mark { transform: scale(1.25); }
 .target__lead, .target__txt { opacity: 0; transition: opacity 0.25s; }
 .target.is-open .target__lead, .target.is-open .target__txt, .target.is-active .target__lead, .target.is-active .target__txt { opacity: 1; }
-.target__lead { width: 46px; height: 1px; background: currentColor; opacity: 0.6; margin-left: 2px; }
-.target.is-open .target__lead { opacity: 0.6; }
+/* No opacity here: it would override the hidden state above and leave a bare line beside every closed target. */
+.target__lead { width: 46px; height: 1px; background: currentColor; margin-left: 2px; }
+.target.is-open .target__lead, .target.is-active .target__lead { opacity: 0.6; }
 .target__txt { padding-left: 10px; white-space: nowrap; line-height: 1.6; font-size: 0.68rem; text-shadow: 0 1px 6px rgb(0 0 0 / 0.9); }
 .target__txt b { font-weight: 500; color: var(--fg); }
 .target.is-flip { flex-direction: row-reverse; transform-origin: right center; }
@@ -50,6 +53,7 @@ withDefaults(defineProps<{
 .target.is-flip { translate: calc(-100% + 26px) 0; }
 .target.is-flip .target__lead { margin: 0 2px 0 0; }
 .target.is-flip .target__txt { padding: 0 10px 0 0; text-align: right; }
+.target__line { display: block; }
 .target__title { color: var(--fg); text-transform: none; letter-spacing: 0.03em; }
 .target__readout { color: var(--muted); text-transform: none; letter-spacing: 0.03em; }
 </style>

@@ -7,6 +7,7 @@ import { gaussian } from '../core/noise'
 import { mulberry32 } from '../core/random'
 import { JET_FRAG, JET_VERT } from '../shaders/blackhole'
 import { GALAXY_FRAG, GALAXY_VERT, GLOW_FRAG, GLOW_VERT } from '../shaders/galaxy'
+import { facingPoint } from './anchors'
 import { NEUTRON_FRAG, NEUTRON_VERT } from '../shaders/neutron'
 import { viewHeightOf, type BodyContext, type BodyView, type SpaceBody } from './types'
 
@@ -26,6 +27,11 @@ const SPIN_EXPONENT = 0.32
 const FIELD_SHELLS = [1.8, 2.7, 4, 6, 9]
 const MAGNETAR_SHELLS = [1.6, 2.3, 3.2, 4.5, 6.5, 9, 13]
 const FIELD_AZIMUTHS = 10
+/** Marker distances from the centre, star radii: along the beam, on the field's middle shell, the torus, the jet. */
+const BEAM_MARK = 9
+const FIELD_MARK = 4
+const WIND_TORUS_MARK = 4.6
+const WIND_JET_MARK = 5.5
 /** Wind-nebula points: thumbnails / full. */
 const NEBULA_POINTS = { preview: 9000, full: 45000 }
 
@@ -52,8 +58,15 @@ export class NeutronStar implements SpaceBody {
   private readonly nebula: Points<BufferGeometry, ShaderMaterial> | null = null
   private readonly nebulaU = { uPR: { value: 1 }, uViewH: { value: 800 }, uI: { value: 0.9 } }
   private readonly parentQ = new Quaternion()
+  private readonly tilt: number
+  private readonly hasNebula: boolean
+  private readonly center = new Vector3()
+  private readonly side = new Vector3()
+  private readonly front = new Vector3()
 
   constructor(render: NeutronRender, ctx: BodyContext) {
+    this.tilt = (render.magneticTiltDeg * Math.PI) / 180
+    this.hasNebula = !!render.windNebula
     const color = new Color(render.beamColor)
     this.spinRate = 2 * Math.PI * SPIN_GAIN * Math.pow(1 / render.periodS, SPIN_EXPONENT)
     this.root.add(this.spin)
@@ -117,6 +130,27 @@ export class NeutronStar implements SpaceBody {
     this.glow.quaternion.copy(camera.quaternion).premultiply(this.parentQ)
     this.nebulaU.uViewH.value = viewHeightOf(camera)
     if (this.nebula) this.nebula.rotation.y += dt * 0.03
+  }
+
+  /**
+   * Marker points. The beams and field lines turn with the star (up to ~1 turn a second on screen): a marker
+   * riding them would race round. Their markers sit instead where the beam passes once per turn, on the right
+   * of the screen, so they stay still while the beam sweeps through them.
+   */
+  anchor(key: string, camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    this.root.getWorldPosition(this.center)
+    this.front.subVectors(camera.position, this.center).setY(0).normalize()
+    this.side.crossVectors(this.front, UP).normalize().negate()
+    const s = Math.sin(this.tilt), c = Math.cos(this.tilt)
+    switch (key) {
+      case 'star': return facingPoint(this.center, STAR_RADIUS, camera, 35, -40, out)
+      case 'beam': return out.copy(this.center).addScaledVector(this.side, s * BEAM_MARK).addScaledVector(UP, c * BEAM_MARK)
+      // On the magnetic equator, at the radius of the middle field-line shell.
+      case 'field': return out.copy(this.center).addScaledVector(this.side, c * FIELD_MARK).addScaledVector(UP, -s * FIELD_MARK)
+      case 'wind-torus': return this.hasNebula ? out.copy(this.center).addScaledVector(this.front, WIND_TORUS_MARK) : null
+      case 'wind-jet': return this.hasNebula ? out.copy(this.center).addScaledVector(UP, WIND_JET_MARK) : null
+      default: return null
+    }
   }
 
   dispose(): void {
@@ -200,3 +234,5 @@ function buildWindNebula(color: Color, count: number, seed: number): BufferGeome
   geo.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 1))
   return geo
 }
+
+const UP = new Vector3(0, 1, 0)

@@ -1,7 +1,7 @@
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, BufferGeometry, CylinderGeometry, Group, InstancedMesh, LatheGeometry,
   Matrix4, Mesh, MeshStandardMaterial, Quaternion, ShaderMaterial, Sphere, SphereGeometry,
-  TorusGeometry, Vector2, Vector3, type Material, type Object3D, type Texture,
+  TorusGeometry, Vector2, Vector3, type Material, type Object3D, type PerspectiveCamera, type Texture,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
@@ -27,6 +27,27 @@ const EARTH_RADIUS = 60
 const EARTH_GAP = 9
 /** Slow turn of the model on its stand, radians per second. */
 const DRIFT = 0.05
+
+/**
+ * Marker points per model, in the model's own coordinates before fit() (metres for the built models, the file's
+ * units for NASA's). Read off the model files (node bounds and vertex clusters of the preview GLBs) and the build
+ * code: a replaced model file needs these re-measured.
+ */
+const SPACECRAFT_ANCHORS: Record<CraftRender['model'], Partial<Record<string, readonly [number, number, number]>>> = {
+  // Truss along z: the arrays at its ends; the Cupola under Node 3; Zarya, the first module, at +x.
+  'iss': { 'solar-arrays': [1.58, -0.07, 4.58], 'cupola': [0.45, -0.8, -0.68], 'zarya': [1.65, -0.35, 0] },
+  // File authored standing (tube along y; turned by MODEL_ROTATION): the aperture door on top, a wing at x ≈ 224,
+  // the WFC3 radial bay with its radiator.
+  'hubble': { 'aperture': [0, 258, 40], 'solar-arrays': [224, -27, 100], 'instruments': [13.6, -121, 74] },
+  // Primary mirror facing +x at x ≈ 1, secondary on its tripod at x ≈ 8.3, the sunshield's top layer.
+  'jwst': { 'mirror': [1.05, 6.3, 0], 'secondary': [8.29, 6.54, 0], 'sunshield': [-6, 4.19, 2.95] },
+  // Dish opening upwards (rim at y ≈ 1.4), magnetometer boom towards +z, RTG boom towards −z, the bus below the dish.
+  'voyager-1': { 'dish': [1.1, 1.0, 0.3], 'magnetometer': [0, 4.27, 6.44], 'rtg': [0, 0.29, -3.43], 'bus': [0.92, 0.1, 0] },
+  // Tianhe along −z from the node; Wentian's wing gimbal at +x; Mengtian's exposed platform at −x (see buildTiangong).
+  'tiangong': { 'tianhe': [0, 2.2, -9], 'wings': [15.2, 0.3, 0], 'platform': [-6.5, -2.2, 0] },
+  // The 58 cm sphere, and a point halfway along the first whip antenna (see buildSputnik).
+  'sputnik-1': { 'sphere': [0.2, 0.2, 0], 'antennas': [0.584, 0.584, -0.773] },
+}
 
 const VIEWS: Record<CraftRender['model'], BodyView> = {
   'iss': { elevationDeg: 26, azimuthDeg: 60, distance: 4.4 },
@@ -57,11 +78,15 @@ export class Spacecraft implements SpaceBody {
   private loaded: LoadedModel | null = null
   private disposed = false
   private usesEarth = false
+  /** The model's own frame once it is in the scene (loaded file or built group), for the marker points. */
+  private frame: Object3D | null = null
+  private readonly marks: Partial<Record<string, readonly [number, number, number]>>
 
   constructor(render: CraftRender, ctx: BodyContext) {
     this.mats = acquireCraftMaterials()
     this.root.add(this.model)
     this.view = VIEWS[render.model]
+    this.marks = SPACECRAFT_ANCHORS[render.model]
     if (render.earth) this.addEarth(ctx)
 
     if (render.model in NASA_MODELS) {
@@ -88,6 +113,7 @@ export class Spacecraft implements SpaceBody {
         // Start from the default view whatever the drift did while the file was loading.
         this.model.rotation.y = 0
         this.model.add(scene)
+        this.frame = scene
         ctx.invalidate()
       }).catch((err) => console.error('[spacecraft] model failed to load', NASA_MODELS[model], err))
     } else {
@@ -97,6 +123,7 @@ export class Spacecraft implements SpaceBody {
       this.mergeByMaterial(built)
       fit(built, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1))
       this.model.add(built)
+      this.frame = built
     }
   }
 
@@ -104,6 +131,14 @@ export class Spacecraft implements SpaceBody {
     this.model.rotation.y += dt * DRIFT
     // The detail is measured in the model's own frame, which the drift just turned.
     if (this.loaded) this.loaded.detail.track(this.loaded.root)
+  }
+
+  /** Marker points: none until a loaded model has arrived. They turn with the model's slow drift. */
+  anchor(key: string, _camera: PerspectiveCamera, out: Vector3): Vector3 | null {
+    const p = this.marks[key]
+    if (!p || !this.frame) return null
+    this.frame.updateWorldMatrix(true, false)
+    return this.frame.localToWorld(out.set(p[0], p[1], p[2]))
   }
 
   dispose(): void {

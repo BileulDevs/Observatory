@@ -113,6 +113,7 @@ float hIce(vec3 p, out float extra){
 }
 
 float heightAt(vec3 p, out float extra){
+  extra = 0.0; // D3D (ANGLE) warns X4000 otherwise: it cannot prove every branch below writes it
   if (uType == 0) return hOcean(p, extra);
   if (uType == 1) return hArid(p, extra);
   return hIce(p, extra);
