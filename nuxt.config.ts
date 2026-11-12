@@ -14,6 +14,13 @@ function objectRoutes(): string[] {
   return ids.flatMap((id) => [`/objets/${id}`, `/en/objects/${id}`])
 }
 
+/** Every constellation page, in both languages, from the generated list (same pattern-reading approach). */
+function constellationRoutes(): string[] {
+  const src = readFileSync(new URL('./app/data/constellations.generated.ts', import.meta.url), 'utf8')
+  const ids = [...src.matchAll(/"id":"([a-z0-9-]+)"/g)].map((m) => m[1]!)
+  return ids.flatMap((id) => [`/constellations/${id}`, `/en/constellations/${id}`])
+}
+
 /** Production origin. Used for canonical URLs, hreflang links and Open Graph. */
 const SITE_URL = 'https://observatoire.example' // ← replace with the final domain
 
@@ -44,6 +51,9 @@ export default defineNuxtConfig({
       'systems-id': { fr: '/systemes/[id]', en: '/systems/[id]' },
       objects: { fr: '/objets', en: '/objects' },
       'objects-id': { fr: '/objets/[id]', en: '/objects/[id]' },
+      create: { fr: '/creation', en: '/create' },
+      constellations: { fr: '/constellations', en: '/constellations' },
+      'constellations-id': { fr: '/constellations/[id]', en: '/constellations/[id]' },
       credits: { fr: '/credits', en: '/credits' },
     },
   },
@@ -85,6 +95,8 @@ export default defineNuxtConfig({
       include: [
         'three',
         'three/addons/controls/OrbitControls.js',
+        'three/addons/loaders/GLTFLoader.js',
+        'three/addons/loaders/DRACOLoader.js',
         'three/addons/postprocessing/EffectComposer.js',
         'three/addons/postprocessing/RenderPass.js',
         'three/addons/postprocessing/UnrealBloomPass.js',
@@ -105,6 +117,6 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     // Featured systems are reached by the crawler from the index; any other generated seed is rendered client-side.
-    prerender: { crawlLinks: true, routes: ['/', '/en', ...objectRoutes()] },
+    prerender: { crawlLinks: true, routes: ['/', '/en', ...objectRoutes(), ...constellationRoutes()] },
   },
 })

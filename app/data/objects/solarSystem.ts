@@ -22,8 +22,8 @@ export const COMETS: SpaceObject[] = [
       { key: 'lastPerihelion', text: { fr: '8 février 1986', en: '8 February 1986' } },
       { key: 'nextPerihelion', text: { fr: '28 juillet 2061', en: '28 July 2061' } },
     ],
-    render: { kind: 'comet', nucleus: 'irregular', tail: 9, ionTail: 0.9, dustTail: 0.8, comaColor: '#cfe2ff', seed: 51 },
-    appearance: 'impression',
+    render: { kind: 'comet', nucleus: 'halley', tail: 9, ionTail: 0.9, dustTail: 0.8, comaColor: '#cfe2ff', seed: 51 },
+    appearance: 'measuredShape',
     sources: [wikipedia("Halley's Comet", 'Halley%27s_Comet')],
   },
   {
@@ -62,8 +62,8 @@ export const COMETS: SpaceObject[] = [
       { key: 'rosetta', text: { fr: 'arrivée 6 août 2014 · Philae posé le 12 novembre 2014', en: 'arrived 6 August 2014 · Philae landed 12 November 2014' } },
       { key: 'discovery', text: { fr: '1969 · Klim Tchourioumov et Svetlana Guérassimenko', en: '1969 · Klim Churyumov and Svetlana Gerasimenko' } },
     ],
-    render: { kind: 'comet', nucleus: 'bilobed', tail: 4, ionTail: 0.35, dustTail: 0.45, comaColor: '#dfe6ee', seed: 53 },
-    appearance: 'impression',
+    render: { kind: 'comet', nucleus: '67p', tail: 4, ionTail: 0.35, dustTail: 0.45, comaColor: '#dfe6ee', seed: 53 },
+    appearance: 'shapeModel',
     sources: [wikipedia('67P/Churyumov–Gerasimenko', '67P/Churyumov%E2%80%93Gerasimenko')],
   },
   {
@@ -146,11 +146,14 @@ export const DWARF_PLANETS: SpaceObject[] = [
     render: {
       kind: 'dwarf-planet',
       planet: {
-        type: 'ice', seed: 61, texture: TEX + 'pluto.jpg', tiltDeg: 122.5,
+        // 122.5° is retrograde: drawn as 180 − 122.5 so the north, the side New Horizons photographed in
+        // 2015, faces the default view instead of the never-imaged south.
+        type: 'ice', seed: 61, texture: TEX + 'pluto.jpg', tiltDeg: 57.5,
         atmosphere: { thick: 0.02, kR: [2.0, 4.6, 9.8], kM: [0.6, 0.6, 0.7], g: 0.7 },
       },
+      elevationDeg: 25,
     },
-    appearance: 'texture',
+    appearance: 'textureFilled',
     sources: [wikipedia('Pluto', 'Pluto')],
   },
   {
@@ -271,7 +274,7 @@ export const SPACECRAFT: SpaceObject[] = [
       { key: 'operator', text: 'NASA, Roscosmos, ESA, JAXA, CSA' },
     ],
     render: { kind: 'spacecraft', model: 'iss', earth: true },
-    appearance: 'model',
+    appearance: 'nasaModel',
     sources: [wikipedia('International Space Station', 'International_Space_Station')],
   },
   {
@@ -292,7 +295,7 @@ export const SPACECRAFT: SpaceObject[] = [
       { key: 'operator', text: { fr: 'NASA, avec l\'ESA', en: 'NASA, with ESA' } },
     ],
     render: { kind: 'spacecraft', model: 'hubble', earth: true },
-    appearance: 'model',
+    appearance: 'nasaModel',
     sources: [wikipedia('Hubble Space Telescope', 'Hubble_Space_Telescope')],
   },
   {
@@ -313,7 +316,7 @@ export const SPACECRAFT: SpaceObject[] = [
       { key: 'operator', text: 'NASA, ESA, CSA' },
     ],
     render: { kind: 'spacecraft', model: 'jwst' },
-    appearance: 'model',
+    appearance: 'nasaModel',
     sources: [wikipedia('James Webb Space Telescope', 'James_Webb_Space_Telescope')],
   },
   {
@@ -334,7 +337,7 @@ export const SPACECRAFT: SpaceObject[] = [
       { key: 'instruments', text: { fr: '2 encore actifs', en: '2 still operating' } },
     ],
     render: { kind: 'spacecraft', model: 'voyager-1' },
-    appearance: 'model',
+    appearance: 'nasaModel',
     sources: [wikipedia('Voyager 1', 'Voyager_1')],
   },
   {

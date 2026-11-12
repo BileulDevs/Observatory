@@ -47,7 +47,7 @@ export class DwarfPlanet implements SpaceBody {
   readonly root = new Group()
   readonly radius = PLANET_RADIUS
   /** Three-quarter phase: the light comes from azimuth ~109° (see SUN_DIRECTION). */
-  readonly view: BodyView = { elevationDeg: 12, azimuthDeg: 70, distance: 7.5 }
+  readonly view: BodyView
   readonly minDistance = 1.35
   readonly animated = true
 
@@ -58,6 +58,7 @@ export class DwarfPlanet implements SpaceBody {
   private readonly spin: number
 
   constructor(render: DwarfRender, ctx: BodyContext) {
+    this.view = { elevationDeg: render.elevationDeg ?? 12, azimuthDeg: 70, distance: 7.5 }
     const res = ctx.preview ? PREVIEW_BAKE_RES : Math.min(ctx.quality.bakeRes, VIEW_BAKE_RES)
     this.planet = new Planet(ctx.baker, { bakeRes: res, atmosphereSteps: ctx.quality.atmosphereSteps, previewOnly: ctx.preview })
     this.planet.setStyle('natural')

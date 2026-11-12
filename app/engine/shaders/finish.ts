@@ -18,3 +18,27 @@ export const FINISH_SHADER: { uniforms: Record<string, IUniform>; vertexShader: 
       gl_FragColor = c;
     }`,
 }
+
+/**
+ * Guard between the scene and the bloom: replaces NaN and infinite pixels with black and caps HDR values below
+ * the half-float limit. The bloom blurs through a mip chain, so one invalid pixel would otherwise turn into
+ * black blocks across the frame. Shaders should never produce such values; this keeps a slip from showing.
+ */
+export const SANITIZE_SHADER = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: /* glsl */`
+varying vec2 vUv;
+void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+`,
+  fragmentShader: /* glsl */`
+uniform sampler2D tDiffuse;
+varying vec2 vUv;
+/** Below the half-float maximum (65504), leaving room for the bloom's additions. */
+#define HDR_CAP 16000.0
+void main(){
+  vec4 c = texture2D(tDiffuse, vUv);
+  bvec4 bad = bvec4(isnan(c.r) || isinf(c.r), isnan(c.g) || isinf(c.g), isnan(c.b) || isinf(c.b), isnan(c.a) || isinf(c.a));
+  gl_FragColor = any(bad) ? vec4(0.0, 0.0, 0.0, 1.0) : clamp(c, 0.0, HDR_CAP);
+}
+`,
+}

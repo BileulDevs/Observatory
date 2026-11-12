@@ -3,6 +3,7 @@ import {
   type Texture,
 } from 'three'
 import { mulberry32 } from '../core/random'
+import { addSurfaceDetail } from './surfaceDetail'
 
 /**
  * Materials and generated textures for the spacecraft models. Everything is drawn into canvases at start-up:
@@ -26,6 +27,15 @@ export interface CraftMaterials {
   cellsDark: MeshStandardMaterial
   radiator: MeshStandardMaterial
   record: MeshStandardMaterial
+  /** Stitched beta-cloth quilting, the white outer blanket of crewed modules. */
+  quilt: MeshStandardMaterial
+  /** Brushed / handled aluminium with fine scratches (Sputnik's polished shell, fittings). */
+  brushed: MeshStandardMaterial
+  /** Large flexible arrays with fine cell strings (Tiangong, Shenzhou, Tianzhou). */
+  cellsFlex: MeshStandardMaterial
+  /** Shared pieces for upgrading loaded models: the environment map and the crinkled-foil normal map. */
+  env: Texture
+  crinkle: Texture
   textures: Texture[]
 }
 
@@ -47,6 +57,12 @@ export function releaseCraftMaterials(): void {
   shared.textures.forEach((t) => t.dispose())
   shared = null
 }
+
+/**
+ * Detail tiles per metre on the built models: 2 m tiles, so the grain stays a few pixels wide on a 30 m station at
+ * the default framing. Higher values make it finer than a pixel, where it averages out to nothing.
+ */
+const BUILT_DETAIL_TILES = 0.5
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas')
@@ -161,6 +177,118 @@ function panels(base: string, line: string): HTMLCanvasElement {
   return c
 }
 
+/**
+ * Beta-cloth quilting: off-white panels with stitch lines in a diamond pattern, slight soiling and seams.
+ * Returns colour and a matching height-derived normal map.
+ */
+function quilt(): [HTMLCanvasElement, HTMLCanvasElement] {
+  const N = 512
+  const [c, g] = canvas(N, N)
+  g.fillStyle = '#ecebe6'
+  g.fillRect(0, 0, N, N)
+  const rnd = mulberry32(11)
+  // Soiling: faint warm blotches from years in orbit.
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * N, y = rnd() * N, r = 10 + rnd() * 60
+    const grd = g.createRadialGradient(x, y, 0, x, y, r)
+    grd.addColorStop(0, `rgba(150,135,110,${0.04 + rnd() * 0.05})`)
+    grd.addColorStop(1, 'rgba(150,135,110,0)')
+    g.fillStyle = grd
+    g.fillRect(x - r, y - r, r * 2, r * 2)
+  }
+  const [hc, hg] = canvas(N, N)
+  hg.fillStyle = '#ffffff'
+  hg.fillRect(0, 0, N, N)
+  const step = 32
+  for (const ctx2 of [g, hg]) {
+    ctx2.strokeStyle = ctx2 === g ? 'rgba(120,115,105,0.45)' : 'rgba(0,0,0,0.9)'
+    ctx2.lineWidth = ctx2 === g ? 1 : 3
+    for (let k = -N; k < N * 2; k += step) {
+      ctx2.beginPath(); ctx2.moveTo(k, 0); ctx2.lineTo(k + N, N); ctx2.stroke()
+      ctx2.beginPath(); ctx2.moveTo(k, N); ctx2.lineTo(k + N, 0); ctx2.stroke()
+    }
+    // Blanket seams every quarter, with a darker tape.
+    ctx2.strokeStyle = ctx2 === g ? 'rgba(90,88,82,0.6)' : 'rgba(0,0,0,1)'
+    ctx2.lineWidth = ctx2 === g ? 3 : 6
+    for (let k = 0; k <= N; k += N / 4) {
+      ctx2.beginPath(); ctx2.moveTo(k, 0); ctx2.lineTo(k, N); ctx2.stroke()
+      ctx2.beginPath(); ctx2.moveTo(0, k); ctx2.lineTo(N, k); ctx2.stroke()
+    }
+  }
+  return [c, heightToNormal(hc, 2.2)]
+}
+
+/** Normal map from a greyscale height canvas (Sobel), tiling. */
+function heightToNormal(hc: HTMLCanvasElement, strength: number): HTMLCanvasElement {
+  const N = hc.width
+  const src = hc.getContext('2d')!.getImageData(0, 0, N, N).data
+  const [nc, ng] = canvas(N, N)
+  const out = ng.createImageData(N, N)
+  const h = (x: number, y: number) => src[(((y + N) % N) * N + ((x + N) % N)) * 4]! / 255
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const dx = (h(x + 1, y) - h(x - 1, y)) * strength
+    const dy = (h(x, y + 1) - h(x, y - 1)) * strength
+    const l = Math.hypot(dx, dy, 1)
+    const o = (y * N + x) * 4
+    out.data[o] = ((-dx / l) * 0.5 + 0.5) * 255
+    out.data[o + 1] = ((-dy / l) * 0.5 + 0.5) * 255
+    out.data[o + 2] = ((1 / l) * 0.5 + 0.5) * 255
+    out.data[o + 3] = 255
+  }
+  ng.putImageData(out, 0, 0)
+  return nc
+}
+
+/** Roughness map of polished metal: mostly smooth, with fine random scratches and handling marks. */
+function scratches(): HTMLCanvasElement {
+  const N = 512
+  const [c, g] = canvas(N, N)
+  g.fillStyle = '#262626'
+  g.fillRect(0, 0, N, N)
+  const rnd = mulberry32(23)
+  for (let i = 0; i < 900; i++) {
+    const x = rnd() * N, y = rnd() * N, a = rnd() * Math.PI, l = 4 + rnd() * 40
+    g.strokeStyle = `rgba(255,255,255,${0.04 + rnd() * 0.12})`
+    g.lineWidth = 0.5 + rnd()
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke()
+  }
+  for (let i = 0; i < 40; i++) {
+    const x = rnd() * N, y = rnd() * N, r = 8 + rnd() * 30
+    const grd = g.createRadialGradient(x, y, 0, x, y, r)
+    grd.addColorStop(0, 'rgba(255,255,255,0.12)')
+    grd.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grd
+    g.fillRect(x - r, y - r, r * 2, r * 2)
+  }
+  return c
+}
+
+/**
+ * Flexible array blanket: long strings of small cells with copper interconnects, a hinge line every panel and
+ * the bright edge frame.
+ */
+function flexCells(): HTMLCanvasElement {
+  const W = 512, H = 1024
+  const [c, g] = canvas(W, H)
+  g.fillStyle = '#b9bcc2'
+  g.fillRect(0, 0, W, H)
+  const rnd = mulberry32(31)
+  const cols = 12, rows = 40
+  const cw = W / cols, ch = H / rows
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const k = 0.9 + rnd() * 0.2
+    const base = new Color('#161d33').multiplyScalar(k)
+    g.fillStyle = `#${base.getHexString()}`
+    g.fillRect(i * cw + 1, j * ch + 1, cw - 2, ch - 2)
+    g.fillStyle = 'rgba(190,120,70,0.5)'
+    g.fillRect(i * cw + 1, j * ch + ch - 3, cw - 2, 1)
+  }
+  // Hinge lines between folded panels.
+  g.fillStyle = 'rgba(220,220,225,0.9)'
+  for (let j = 0; j <= rows; j += 4) g.fillRect(0, j * ch - 1, W, 3)
+  return c
+}
+
 /** Radiator panels: white with the thin stripes of their coolant tubes. */
 function radiatorStripes(): HTMLCanvasElement {
   const [c, g] = canvas(256, 256)
@@ -203,17 +331,31 @@ function build(): CraftMaterials {
   const blue = texture(cells('#1d2a5c', '#9aa3b8', '#8d9ad0', 10, 10), true, [2, 4])
   const dark = texture(cells('#141b2c', '#59606e', '#3d4a6a', 10, 10), true, [2, 6])
   const radiator = texture(radiatorStripes(), true, [3, 1])
-  const textures = [env, crinkle, latticeTex, blanket, copper, blue, dark, radiator]
+  const [quiltC, quiltN] = quilt()
+  // Lathe UVs span a whole module, so the quilting repeats many times along and around it (~30 cm diamonds).
+  const quiltMap = texture(quiltC, true, [10, 8])
+  const quiltNormal = texture(quiltN, false, [10, 8])
+  const scratchMap = texture(scratches(), false, [1, 1])
+  const flex = texture(flexCells(), true, [1, 3])
+  const textures = [env, crinkle, latticeTex, blanket, copper, blue, dark, radiator, quiltMap, quiltNormal, scratchMap, flex]
 
   const std = (p: ConstructorParameters<typeof MeshStandardMaterial>[0]) => new MeshStandardMaterial({ envMap: env, envMapIntensity: 0.7, ...p })
+  const whitePaint = std({ color: '#e6e6e2', metalness: 0.05, roughness: 0.55, side: DoubleSide })
+  const darkStructure = std({ color: '#262829', metalness: 0.3, roughness: 0.6 })
+  const metal = std({ color: '#a7abb0', metalness: 0.85, roughness: 0.35 })
+  // The built models are modelled in metres in their geometry space, and these materials are shared between
+  // models on screen, so the detail is taken in geometry space (no per-model frame).
+  addSurfaceDetail(whitePaint, { kind: 'paint', scale: BUILT_DETAIL_TILES })
+  addSurfaceDetail(darkStructure, { kind: 'paint', scale: BUILT_DETAIL_TILES })
+  addSurfaceDetail(metal, { kind: 'metal', scale: BUILT_DETAIL_TILES })
   return {
     goldFoil: std({ color: '#c99a3e', metalness: 1, roughness: 0.32, normalMap: crinkle }),
     silverFoil: std({ color: '#d9dde2', metalness: 0.55, roughness: 0.4, normalMap: crinkle }),
     whiteBlanket: std({ map: blanket, metalness: 0, roughness: 0.82 }),
-    whitePaint: std({ color: '#e6e6e2', metalness: 0.05, roughness: 0.55, side: DoubleSide }),
-    darkStructure: std({ color: '#262829', metalness: 0.3, roughness: 0.6 }),
+    whitePaint,
+    darkStructure,
     truss: std({ color: '#9da1a6', metalness: 0.7, roughness: 0.45, alphaMap: latticeTex, alphaTest: 0.5, side: DoubleSide }),
-    metal: std({ color: '#a7abb0', metalness: 0.85, roughness: 0.35 }),
+    metal,
     polished: std({ color: '#eef0f3', metalness: 0.75, roughness: 0.18, envMapIntensity: 1.6 }),
     goldMirror: std({ color: '#f0b84a', metalness: 0.6, roughness: 0.2, emissive: '#3a2608', envMapIntensity: 1.4 }),
     sunshield: std({ color: '#d2c2e4', metalness: 0.55, roughness: 0.35, normalMap: crinkle, side: DoubleSide }),
@@ -222,6 +364,12 @@ function build(): CraftMaterials {
     cellsDark: std({ map: dark, metalness: 0.4, roughness: 0.35, side: DoubleSide }),
     radiator: std({ map: radiator, metalness: 0.05, roughness: 0.6, side: DoubleSide }),
     record: std({ color: '#d9a640', metalness: 1, roughness: 0.18 }),
+    quilt: std({ map: quiltMap, normalMap: quiltNormal, metalness: 0, roughness: 0.85 }),
+    // Roughness comes from the map (0.15 polished, scratches up to ~0.6): the factor must stay 1.
+    brushed: std({ color: '#e9ebee', metalness: 0.95, roughness: 1, roughnessMap: scratchMap, envMapIntensity: 1.5 }),
+    cellsFlex: std({ map: flex, metalness: 0.45, roughness: 0.3, side: DoubleSide }),
+    env,
+    crinkle,
     textures,
   }
 }

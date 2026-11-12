@@ -12,6 +12,8 @@ const routeBase = computed(() => String(route.name ?? '').split('___')[0] ?? '')
       <NuxtLink :to="localePath('index')" :aria-current="routeBase === 'index' ? 'page' : undefined">{{ $t('nav.observatory') }}</NuxtLink>
       <NuxtLink :to="localePath('systems')" :aria-current="routeBase.startsWith('systems') ? 'page' : undefined">{{ $t('nav.systems') }}</NuxtLink>
       <NuxtLink :to="localePath('objects')" :aria-current="routeBase.startsWith('objects') ? 'page' : undefined">{{ $t('nav.objects') }}</NuxtLink>
+      <NuxtLink :to="localePath('constellations')" :aria-current="routeBase.startsWith('constellations') ? 'page' : undefined">{{ $t('nav.constellations') }}</NuxtLink>
+      <NuxtLink :to="localePath('create')" :aria-current="routeBase === 'create' ? 'page' : undefined">{{ $t('nav.create') }}</NuxtLink>
       <LangSwitch />
     </nav>
   </header>

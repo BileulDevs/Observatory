@@ -1,5 +1,6 @@
 import type { ObjectRender } from '~/types/objects'
 import { BlackHole } from './BlackHole'
+import { CatalogueStar } from './CatalogueStar'
 import { Comet } from './Comet'
 import { DwarfPlanet } from './DwarfPlanet'
 import { Galaxy } from './Galaxy'
@@ -12,6 +13,7 @@ import type { BodyContext, SpaceBody } from './types'
 export function createBody(render: ObjectRender, ctx: BodyContext): SpaceBody {
   switch (render.kind) {
     case 'black-hole': return new BlackHole(render, ctx)
+    case 'star': return new CatalogueStar(render, ctx)
     case 'neutron-star': return new NeutronStar(render, ctx)
     case 'galaxy': return new Galaxy(render, ctx)
     case 'nebula': return new Nebula(render, ctx)

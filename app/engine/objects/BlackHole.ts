@@ -60,7 +60,7 @@ export class BlackHole implements SpaceBody {
       uToWorld: { value: new Matrix3() },
       uRadius: { value: lensRadius },
       uTime: { value: 0 },
-      uDiskIn: { value: DISK_INNER },
+      uDiskIn: { value: render.diskInner ?? DISK_INNER },
       uDiskOut: { value: render.diskOuter },
       uDiskT: { value: render.diskTemperatureK },
       uDiskI: { value: Math.min(render.diskIntensity, MAX_DISK_INTENSITY) },

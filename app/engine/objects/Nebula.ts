@@ -1,21 +1,31 @@
 import {
-  AdditiveBlending, BufferAttribute, BufferGeometry, Color, CustomBlending, Data3DTexture, Group, LinearFilter, Matrix4,
-  Mesh, OneFactor, OneMinusSrcAlphaFactor, Points, RedFormat, RepeatWrapping, ShaderMaterial, SphereGeometry, Vector3,
-  type PerspectiveCamera,
+  AdditiveBlending, BufferAttribute, BufferGeometry, Camera, ClampToEdgeWrapping, Color, CustomBlending, Data3DTexture,
+  Group, HalfFloatType, LinearFilter, Matrix4, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Points,
+  RedFormat, RepeatWrapping, RGBAFormat, Scene, ShaderMaterial, SphereGeometry, Vector3, WebGL3DRenderTarget,
+  type PerspectiveCamera, type WebGLRenderer,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { gaussian } from '../core/noise'
 import { mulberry32 } from '../core/random'
 import { GALAXY_FRAG, GALAXY_VERT } from '../shaders/galaxy'
-import { NEBULA_FRAG, NEBULA_VERT } from '../shaders/nebula'
+import { NEBULA_BAKE_FRAG, NEBULA_BAKE_VERT, NEBULA_FRAG, NEBULA_VERT } from '../shaders/nebula'
 import { viewHeightOf, type BodyContext, type BodyView, type SpaceBody } from './types'
 
 type NebulaRender = Extract<ObjectRender, { kind: 'nebula' }>
 
 /** Nebula radius in world units. */
 const NEBULA_RADIUS = 8
-/** Ray-march steps: thumbnails / low tier / desktop. Under ~32 the gas shows layered slices. */
-const STEPS = { preview: 30, low: 44, high: 72 }
+/**
+ * Ray-march steps: thumbnails / low tier / desktop. Each step is one fetch of the baked volume plus arithmetic
+ * (two more fetches on the Helix's knot band and the Pillars' lit skin); under ~32 the gas shows layered slices.
+ */
+const STEPS = { preview: 36, low: 56, high: 96 }
+/**
+ * Baked volume edge (voxels): thumbnails / low tier / desktop. RGBA half-float: 112³ ≈ 11 MB, 160³ ≈ 33 MB.
+ * Each voxel is 4 evaluations of the noise inputs at bake time (anti-aliasing), so the one-off bake grows with
+ * the cube of this. Below ~96 the largest noise octave turns blobby.
+ */
+const VOLUME = { preview: 64, low: 112, high: 160 }
 /** 3D noise texture edge (texels). 64³ = 256 KB; finer only adds memory, the shader stacks octaves anyway. */
 const NOISE_SIZE = 64
 /** Lattice period of the noise (cells per texture edge): sets the base feature size. */
@@ -43,18 +53,27 @@ export class Nebula implements SpaceBody {
   private readonly stars: Points<BufferGeometry, ShaderMaterial>
   private readonly starU = { uPR: { value: 1 }, uViewH: { value: 800 }, uI: { value: 1 } }
   private readonly invLocal = new Matrix4()
+  private readonly volumeTarget: WebGL3DRenderTarget
+  private baked = false
+  private readonly bakeFn: () => void
 
   constructor(render: NebulaRender, ctx: BodyContext) {
     const steps = ctx.preview ? STEPS.preview : ctx.quality.tier === 'low' ? STEPS.low : STEPS.high
+    const size = ctx.preview ? VOLUME.preview : ctx.quality.tier === 'low' ? VOLUME.low : VOLUME.high
+    const noise = acquireNoise()
+    this.volumeTarget = new WebGL3DRenderTarget(size, size, size, {
+      type: HalfFloatType, format: RGBAFormat, depthBuffer: false,
+      minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false,
+    })
+    const vol = this.volumeTarget.texture
+    vol.wrapS = vol.wrapT = vol.wrapR = ClampToEdgeWrapping
+    this.bakeFn = () => bakeVolume(ctx.renderer, this.volumeTarget, render, noise)
     this.volumeU = {
-      uNoise: { value: acquireNoise() },
+      uVol: { value: vol },
       uCamL: { value: new Vector3() },
       uRadius: { value: NEBULA_RADIUS },
-      uC1: { value: new Color(render.palette[0]) },
-      uC2: { value: new Color(render.palette[1]) },
-      uC3: { value: new Color(render.palette[2]) },
-      uSeed: { value: (render.seed % 17) * 0.137 },
       uI: { value: SHAPE_GAIN[render.shape] },
+      ...fieldUniforms(render, noise),
     }
     this.volume = new Mesh(new SphereGeometry(NEBULA_RADIUS, 48, 32), new ShaderMaterial({
       vertexShader: NEBULA_VERT, fragmentShader: NEBULA_FRAG, uniforms: this.volumeU,
@@ -78,6 +97,11 @@ export class Nebula implements SpaceBody {
   }
 
   update(_dt: number, _time: number, camera: PerspectiveCamera): void {
+    // Baked on the first frame rather than in the constructor: the stage is attached and the renderer idle.
+    if (!this.baked) {
+      this.bakeFn()
+      this.baked = true
+    }
     this.volume.updateWorldMatrix(true, false)
     this.invLocal.copy(this.volume.matrixWorld).invert()
     this.volumeU.uCamL.value.copy(camera.position).applyMatrix4(this.invLocal)
@@ -87,11 +111,57 @@ export class Nebula implements SpaceBody {
   dispose(): void {
     this.volume.geometry.dispose()
     this.volume.material.dispose()
+    this.volumeTarget.dispose()
     releaseNoise()
     this.stars.geometry.dispose()
     this.stars.material.dispose()
     this.root.removeFromParent()
   }
+}
+
+/** Uniforms of the shared field code (noise library, palette, seed), for both the bake and the march. */
+function fieldUniforms(render: NebulaRender, noise: Data3DTexture) {
+  return {
+    uNoise: { value: noise },
+    uC1: { value: new Color(render.palette[0]) },
+    uC2: { value: new Color(render.palette[1]) },
+    uC3: { value: new Color(render.palette[2]) },
+    uSeed: { value: (render.seed % 17) * 0.137 },
+  }
+}
+
+/**
+ * Evaluates the nebula's noise inputs into the 3D target, one slice per draw, then restores the renderer's
+ * target and clear settings. One draw per slice (64–160), four evaluations of the inputs per voxel: tens of
+ * milliseconds on a desktop GPU at 160³, paid once when the nebula appears.
+ */
+function bakeVolume(renderer: WebGLRenderer, target: WebGL3DRenderTarget, render: NebulaRender, noise: Data3DTexture): void {
+  const size = target.width
+  const material = new ShaderMaterial({
+    vertexShader: NEBULA_BAKE_VERT, fragmentShader: NEBULA_BAKE_FRAG,
+    defines: { SHAPE: SHAPE_INDEX[render.shape] },
+    uniforms: { ...fieldUniforms(render, noise), uZ: { value: 0 }, uSize: { value: size } },
+    depthTest: false, depthWrite: false,
+  })
+  const quad = new Mesh(new PlaneGeometry(2, 2), material)
+  quad.frustumCulled = false
+  const scene = new Scene()
+  scene.add(quad)
+  const camera = new Camera()
+  const previous = renderer.getRenderTarget()
+  const previousFace = renderer.getActiveCubeFace()
+  const previousLevel = renderer.getActiveMipmapLevel()
+  const autoClear = renderer.autoClear
+  renderer.autoClear = false
+  for (let z = 0; z < size; z++) {
+    material.uniforms.uZ!.value = ((z + 0.5) / size) * 2 - 1
+    renderer.setRenderTarget(target, z)
+    renderer.render(scene, camera)
+  }
+  renderer.setRenderTarget(previous, previousFace, previousLevel)
+  renderer.autoClear = autoClear
+  quad.geometry.dispose()
+  material.dispose()
 }
 
 /**

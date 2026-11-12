@@ -35,23 +35,15 @@ export class ObjectStage implements Stage {
   private tween: Tween | null = null
   private readonly focus = new Vector3()
 
-  constructor(private readonly render: ObjectRender, private readonly opts: ObjectStageOptions) {}
+  constructor(private render: ObjectRender, private readonly opts: ObjectStageOptions) {}
 
   attach(ctx: StageContext): void {
     this.ctx = ctx
     this.root.add(createLights())
-    const body = createBody(this.render, {
-      baker: ctx.baker, quality: ctx.quality, preview: false, sunDir: SUN_DIRECTION, sky: ctx.sky,
-      invalidate: () => ctx.invalidate(),
-    })
-    this.body = body
-    this.root.add(body.root)
-    if (body.focus) this.focus.copy(body.focus)
-
+    const body = this.build(ctx)
     ctx.setViewShift(this.opts.shift)
     this.home(ctx.camera.position)
     ctx.camera.lookAt(this.focus)
-
     const c = new OrbitControls(ctx.camera, ctx.canvas)
     c.target.copy(this.focus)
     c.enableDamping = true
@@ -59,11 +51,50 @@ export class ObjectStage implements Stage {
     c.enablePan = false
     c.rotateSpeed = 0.5
     c.zoomSpeed = 0.7
-    c.minDistance = body.radius * body.minDistance
-    c.maxDistance = body.radius * body.view.distance * (this.opts.distanceScale ?? 1) * MAX_ZOOM_OUT
     c.addEventListener('change', ctx.invalidate)
     this.controls = c
+    this.fitControls(body)
     ctx.invalidate()
+  }
+
+  /**
+   * Replaces the object with another description (the creator, on every change). The camera stays where the
+   * visitor put it when the kind of object is the same; a new kind starts from its own default view.
+   */
+  setRender(render: ObjectRender): void {
+    const sameKind = render.kind === this.render.kind
+    this.render = render
+    const ctx = this.ctx
+    if (!ctx) return
+    this.body?.dispose()
+    const body = this.build(ctx)
+    this.fitControls(body)
+    if (!sameKind) {
+      this.home(ctx.camera.position)
+      this.controls?.target.copy(this.focus)
+      ctx.camera.lookAt(this.focus)
+    }
+    ctx.invalidate()
+  }
+
+  private build(ctx: StageContext): SpaceBody {
+    const body = createBody(this.render, {
+      baker: ctx.baker, renderer: ctx.renderer, quality: ctx.quality, preview: false, sunDir: SUN_DIRECTION, sky: ctx.sky,
+      invalidate: () => ctx.invalidate(),
+    })
+    this.body = body
+    this.root.add(body.root)
+    this.focus.set(0, 0, 0)
+    if (body.focus) this.focus.copy(body.focus)
+    return body
+  }
+
+  /** Zoom limits from the body's size. */
+  private fitControls(body: SpaceBody): void {
+    const c = this.controls
+    if (!c) return
+    c.minDistance = body.radius * body.minDistance
+    c.maxDistance = body.radius * body.view.distance * (this.opts.distanceScale ?? 1) * MAX_ZOOM_OUT
   }
 
   /** Default camera position from the body's preferred view. */

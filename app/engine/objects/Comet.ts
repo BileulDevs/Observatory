@@ -3,26 +3,53 @@ import {
   MeshStandardMaterial, PlaneGeometry, Quaternion, ShaderMaterial, Vector3, type PerspectiveCamera,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { fbm3 } from '../core/noise'
 import { COMA_FRAG, DUST_TAIL_FRAG, ION_TAIL_FRAG, TAIL_VERT } from '../shaders/comet'
 import { GLOW_VERT } from '../shaders/galaxy'
 import type { BodyContext, BodyView, SpaceBody } from './types'
+import { loadGlb } from './gltf'
+import { addSurfaceDetail } from './surfaceDetail'
 
 type CometRender = Extract<ObjectRender, { kind: 'comet' }>
 
 /** Nucleus radius in world units. Tails are hundreds of thousands of times longer in reality; here ~30×. */
 const NUCLEUS_RADIUS = 0.35
+/**
+ * Rock detail tiles across the nucleus radius. With the second octave, fractures run from a tenth of the
+ * radius down to a few hundredths; fewer tiles make the nucleus look like a smooth pebble.
+ */
+const NUCLEUS_DETAIL_TILES = 2.2
 /** World length of a tail per unit of `render.tail`. */
 const TAIL_UNIT = 3.2
-/** Icosahedron subdivisions: thumbnails / full. 6 = 40k vertices, enough for cliffs at full-screen size. */
-const NUCLEUS_DETAIL = { preview: 4, full: 6 }
+/**
+ * Icosahedron subdivisions: thumbnails / full. Each face is cut into (n + 1)² triangles, so 44 ≈ 40k triangles
+ * and 20k shared vertices: enough for cliffs at full-screen size, and for the narrow waist of Halley's nucleus.
+ * Built once per comet.
+ */
+const NUCLEUS_DETAIL = { preview: 14, full: 44 }
 /** Tails up to this length (render units) get a head-on framing: their nucleus is the point of interest. */
 const NUCLEUS_FOCUS_TAIL = 4
+/**
+ * Measured nucleus shapes, in public/models/comets/. 67P: ESA/Rosetta/NAVCAM shape model (Nov 2015, 104k
+ * triangles, kilometres, spin axis along y), Draco-compressed; CC BY-SA 3.0 IGO, credited on the credits page.
+ */
+const SHAPE_MODELS = { '67p': '/models/comets/67p.glb' } as const
+/**
+ * Halley's nucleus as two overlapping ellipsoids (centre, semi-axes, in half-lengths): 15.3 × 7.2 × 7.2 km
+ * overall (Vega 1 and Giotto, 1986), elongated, with the slight waist of its "peanut" outline.
+ */
+const HALLEY_LOBES = [
+  { c: new Vector3(-0.25, 0, 0), s: new Vector3(0.75, 0.46, 0.45) },
+  { c: new Vector3(0.3, 0.04, 0), s: new Vector3(0.7, 0.42, 0.43) },
+]
+
 /** Dust-tail mesh resolution (along × across). */
 const FAN_SEGMENTS: [number, number] = [96, 24]
 
 /**
- * A comet near the Sun: a dark nucleus (irregular, or two-lobed like 67P), its coma, a straight blue ion tail
+ * A comet near the Sun: a dark nucleus (67P's measured shape, Halley's measured proportions, or a generic lumpy
+ * body for comets whose nucleus was never imaged), its coma, a straight blue ion tail
  * pushed away by the solar wind and a broader curved dust tail lagging along the orbit.
  */
 export class Comet implements SpaceBody {
@@ -40,6 +67,7 @@ export class Comet implements SpaceBody {
   private readonly ionU: { uColor: { value: Color }; uI: { value: number }; uTime: { value: number } }
   private readonly parentQ = new Quaternion()
   private readonly spinAxis = new Vector3(0.3, 1, 0.1).normalize()
+  private disposed = false
 
   constructor(render: CometRender, ctx: BodyContext) {
     const length = render.tail * TAIL_UNIT
@@ -47,10 +75,25 @@ export class Comet implements SpaceBody {
     // The orbit's direction of motion, perpendicular to the Sun line: dust lags behind it.
     const motion = new Vector3().crossVectors(ctx.sunDir, new Vector3(0, 1, 0)).normalize()
 
-    this.nucleus = new Mesh(
-      buildNucleus(render, ctx.preview ? NUCLEUS_DETAIL.preview : NUCLEUS_DETAIL.full),
-      new MeshStandardMaterial({ color: '#4a4541', roughness: 0.95, metalness: 0 }),
-    )
+    const material = new MeshStandardMaterial({ color: '#4a4541', roughness: 0.95, metalness: 0 })
+    addSurfaceDetail(material, { kind: 'rock', scale: NUCLEUS_DETAIL_TILES / NUCLEUS_RADIUS, cavity: true })
+    if (render.nucleus === '67p') {
+      // Hidden until the file arrives (a few hundred kB): the coma and tails show meanwhile.
+      this.nucleus = new Mesh(new BufferGeometry(), material)
+      this.nucleus.visible = false
+      loadShape(render.nucleus).then((geo) => {
+        if (this.disposed) {
+          geo.dispose()
+          return
+        }
+        this.nucleus.geometry.dispose()
+        this.nucleus.geometry = geo
+        this.nucleus.visible = true
+        ctx.invalidate()
+      }).catch((err) => console.error('[comet] shape model failed to load', SHAPE_MODELS[render.nucleus as '67p'], err))
+    } else {
+      this.nucleus = new Mesh(buildNucleus(render, ctx.preview ? NUCLEUS_DETAIL.preview : NUCLEUS_DETAIL.full), material)
+    }
     this.root.add(this.nucleus)
 
     const coma = new Color(render.comaColor)
@@ -105,10 +148,11 @@ export class Comet implements SpaceBody {
 
     // Seen from -z the anti-sun side is on the right of the screen, away from the fact panel.
     if (render.tail <= NUCLEUS_FOCUS_TAIL) {
-      // Short-tailed comets (67P, 3I) are about their nucleus: frame the head.
+      // Short-tailed comets (67P, 3I) are about their nucleus: frame the head. The nucleus spins (one turn in
+      // ~50 s), so 67P shows its "rubber duck" outline and its end-on view in turn.
       this.focus = tailDir.clone().multiplyScalar(NUCLEUS_RADIUS * 1.5)
       this.radius = NUCLEUS_RADIUS * 2.6
-      // Seen across the long axis, so 67P's two lobes read; light (azimuth ~109°) falls from the side.
+      // Light (azimuth ~109°) falls from the side, so the relief reads.
       this.view = { elevationDeg: 16, azimuthDeg: 160, distance: 4.5 }
     } else {
       this.focus = tailDir.clone().multiplyScalar(length * 0.3)
@@ -133,6 +177,7 @@ export class Comet implements SpaceBody {
   }
 
   dispose(): void {
+    this.disposed = true
     this.nucleus.geometry.dispose()
     this.nucleus.material.dispose()
     this.coma.geometry.dispose()
@@ -166,24 +211,63 @@ function ellipsoidExit(d: Vector3, center: Vector3, semi: Vector3): number {
   return Math.max(0, (-b + Math.sqrt(disc)) / (2 * a))
 }
 
+/** Decoded shape models, one per file for the page's lifetime (~1 MB each, CPU side); each comet gets a copy. */
+const shapeCache = new Map<keyof typeof SHAPE_MODELS, Promise<BufferGeometry>>()
+
+/**
+ * A measured nucleus, scaled so its farthest point from the centre of mass sits at NUCLEUS_RADIUS (the same
+ * convention as the built nuclei), with smooth normals. The caller owns the returned geometry.
+ */
+async function loadShape(model: keyof typeof SHAPE_MODELS): Promise<BufferGeometry> {
+  let pending = shapeCache.get(model)
+  if (!pending) {
+    pending = loadGlb(SHAPE_MODELS[model]).then((gltf) => {
+      let geo: BufferGeometry | null = null
+      gltf.scene.traverse((o) => {
+        const mesh = o as Mesh
+        if (mesh.isMesh && !geo) geo = mesh.geometry
+      })
+      if (!geo) throw new Error('no mesh in shape model')
+      const g = geo as BufferGeometry
+      const pos = g.getAttribute('position') as BufferAttribute
+      const v = new Vector3()
+      let max = 0
+      for (let i = 0; i < pos.count; i++) max = Math.max(max, v.fromBufferAttribute(pos, i).length())
+      // The file's origin is the comet's centre of mass (the shape model's body frame): scale about it.
+      g.scale(NUCLEUS_RADIUS / max, NUCLEUS_RADIUS / max, NUCLEUS_RADIUS / max)
+      g.computeVertexNormals()
+      computeCavity(g)
+      return g
+    })
+    shapeCache.set(model, pending)
+  }
+  return (await pending).clone()
+}
+
 /**
  * Nucleus mesh: a sphere whose vertices are pushed to the body's surface along their direction. Irregular nuclei
- * are a lumpy ellipsoid; 67P is the union of its two measured lobes (4.1 × 3.3 × 1.8 and 2.6 × 2.3 × 1.8 km).
- * Fractal noise and a few shallow pits add the rough terrain Rosetta showed.
+ * are a lumpy ellipsoid; Halley is the union of two lobes matching its measured proportions. Fractal noise and
+ * a few shallow pits add the rough terrain the spacecraft showed.
  */
 function buildNucleus(render: CometRender, detail: number): BufferGeometry {
-  const geo = new IcosahedronGeometry(1, detail)
+  // The polyhedron comes unindexed (three vertices per triangle), so its normals would come out flat and the
+  // relief faceted. Weld it first, without the attributes that differ across the seam.
+  const ico = new IcosahedronGeometry(1, detail)
+  ico.deleteAttribute('normal')
+  ico.deleteAttribute('uv')
+  const geo = mergeVertices(ico)
+  ico.dispose()
   const pos = geo.getAttribute('position') as BufferAttribute
   const d = new Vector3()
   const seed = render.seed
-  const big = { c: new Vector3(-0.35, 0, 0), s: new Vector3(0.79, 0.63, 0.35) }
-  const small = { c: new Vector3(0.78, 0.18, 0), s: new Vector3(0.5, 0.44, 0.35) }
   let max = 0
   for (let i = 0; i < pos.count; i++) {
     d.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize()
     let r: number
-    if (render.nucleus === 'bilobed') {
-      r = Math.max(ellipsoidExit(d, big.c, big.s), ellipsoidExit(d, small.c, small.s))
+    if (render.nucleus === 'halley') {
+      r = Math.max(...HALLEY_LOBES.map((l) => ellipsoidExit(d, l.c, l.s)))
+      // Broad lumps: Vega's images show an irregular potato, not two clean ellipsoids.
+      r *= 1 + 0.08 * fbm3(d.x * 1.3, d.y * 1.3, d.z * 1.3, 3, seed)
     } else {
       r = 1 / Math.sqrt((d.x / 1) ** 2 + (d.y / 0.62) ** 2 + (d.z / 0.72) ** 2)
       r *= 1 + 0.18 * fbm3(d.x * 1.3, d.y * 1.3, d.z * 1.3, 3, seed)
@@ -199,7 +283,61 @@ function buildNucleus(render: CometRender, detail: number): BufferGeometry {
   for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k)
   pos.needsUpdate = true
   geo.computeVertexNormals()
+  computeCavity(geo)
   return geo
+}
+
+/** Laplacian smoothing passes for the cavity reference surface: more = wider hollows count as cavities. */
+const CAVITY_PASSES = 12
+/** Depth below the smoothed surface (in nucleus radii) that reaches full darkness. */
+const CAVITY_DEPTH = 0.06
+/** Darkest a hollow gets (0 = black): comets are lit by one sun, so pits are deep in shadow but not void. */
+const CAVITY_FLOOR = 0.4
+
+/**
+ * Stores in `aCavity` how open each vertex is to the sky: 1 on ridges and plains, down to CAVITY_FLOOR at the
+ * bottom of pits, the neck of 67P and under overhangs. Measured as the depth of the vertex below a smoothed
+ * copy of the surface, along its normal: a cheap stand-in for ambient occlusion, computed once per shape
+ * (about 20 ms for 67P's 52k vertices). Needs an indexed geometry with normals.
+ */
+function computeCavity(geo: BufferGeometry): void {
+  const pos = geo.getAttribute('position') as BufferAttribute
+  const nrm = geo.getAttribute('normal') as BufferAttribute
+  const index = geo.getIndex()
+  const n = pos.count
+  const cavity = new Float32Array(n).fill(1)
+  if (!index) {
+    geo.setAttribute('aCavity', new BufferAttribute(cavity, 1))
+    return
+  }
+  // Each triangle edge links two vertices, both ways.
+  const idx = index.array
+  const deg = new Uint32Array(n)
+  for (let i = 0; i < idx.length; i++) deg[idx[i]!]! += 2
+  let cur = Float32Array.from(pos.array as ArrayLike<number>)
+  let next = new Float32Array(n * 3)
+  for (let pass = 0; pass < CAVITY_PASSES; pass++) {
+    next.fill(0)
+    for (let t = 0; t < idx.length; t += 3) {
+      const a = idx[t]!, b = idx[t + 1]!, c = idx[t + 2]!
+      for (const [u, v] of [[a, b], [b, c], [c, a]] as const) {
+        next[u * 3]! += cur[v * 3]!; next[u * 3 + 1]! += cur[v * 3 + 1]!; next[u * 3 + 2]! += cur[v * 3 + 2]!
+        next[v * 3]! += cur[u * 3]!; next[v * 3 + 1]! += cur[u * 3 + 1]!; next[v * 3 + 2]! += cur[u * 3 + 2]!
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const d = deg[i] || 1
+      next[i * 3]! /= d; next[i * 3 + 1]! /= d; next[i * 3 + 2]! /= d
+    }
+    ;[cur, next] = [next, cur]
+  }
+  for (let i = 0; i < n; i++) {
+    const dx = cur[i * 3]! - pos.getX(i), dy = cur[i * 3 + 1]! - pos.getY(i), dz = cur[i * 3 + 2]! - pos.getZ(i)
+    // Positive when the smoothed surface lies outside the vertex: the vertex sits in a hollow.
+    const depth = (dx * nrm.getX(i) + dy * nrm.getY(i) + dz * nrm.getZ(i)) / NUCLEUS_RADIUS
+    cavity[i] = 1 - (1 - CAVITY_FLOOR) * Math.min(1, Math.max(0, depth / CAVITY_DEPTH))
+  }
+  geo.setAttribute('aCavity', new BufferAttribute(cavity, 1))
 }
 
 /**

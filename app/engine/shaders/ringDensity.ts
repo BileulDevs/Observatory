@@ -2,6 +2,12 @@
  * Radial ring density, shared by the ring material and the planet surface (ring shadows).
  */
 export const GLSL_RING_DENSITY = /* glsl */`
+#ifndef SQ_DEFINED
+#define SQ_DEFINED
+// x², for squares whose base can be negative: GLSL leaves pow(x, y) undefined for x < 0 and some GPUs
+// (Direct3D through ANGLE) return NaN, which the bloom then spreads into black blocks.
+float sq(float x){ return x * x; }
+#endif
 uniform float uRingIn;
 uniform float uRingOut;
 uniform float uRingSeed;
@@ -20,8 +26,8 @@ float ringDensity(float r, float fw){
   float d = 0.5 * o1 + 0.27 * o2 + 0.15 * o3 + 0.08 * o4;
   d = smoothstep(0.2, 0.8, d);
   d *= smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.93, 1.0, t));
-  d *= 1.0 - 0.96 * exp(-pow((t - 0.63) / 0.022, 2.0));
-  d *= 1.0 - 0.7 * exp(-pow((t - 0.87) / 0.007, 2.0));
+  d *= 1.0 - 0.96 * exp(-sq((t - 0.63) / 0.022));
+  d *= 1.0 - 0.7 * exp(-sq((t - 0.87) / 0.007));
   d *= mix(0.45, 1.0, smoothstep(0.0, 0.35, t));
   return clamp(d, 0.0, 1.0);
 }

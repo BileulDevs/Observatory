@@ -14,6 +14,8 @@ export interface StageContext {
   readonly camera: PerspectiveCamera
   readonly canvas: HTMLCanvasElement
   readonly baker: CubeBaker
+  /** The engine's renderer, for one-off offscreen work (volume bakes). Stages must restore any state they change. */
+  readonly renderer: WebGLRenderer
   /** The backdrop's sky cubemap (read-only): lets effects such as lensing show the same sky they bend. */
   readonly sky: Texture
   readonly quality: QualityProfile

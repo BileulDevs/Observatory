@@ -89,7 +89,7 @@ export class ObjectCatalogueStage implements Stage {
     const next = this.pending.shift()
     if (next) {
       next.body = createBody(next.entry.render, {
-        baker: ctx.baker, quality: ctx.quality, preview: true, sunDir: SUN_DIRECTION, sky: ctx.sky,
+        baker: ctx.baker, renderer: ctx.renderer, quality: ctx.quality, preview: true, sunDir: SUN_DIRECTION, sky: ctx.sky,
         invalidate: () => ctx.invalidate(),
       })
       next.group.add(next.body.root)
@@ -114,6 +114,9 @@ export class ObjectCatalogueStage implements Stage {
     const pr = renderer.getPixelRatio()
     const fullW = target ? target.width : canvasRect.width * pr
     const fullH = target ? target.height : canvasRect.height * pr
+    // Each view draws the whole scene graph: hide the other objects, so three neither walks their (sometimes
+    // hundreds of) meshes for frustum culling nor sorts them, for every view of every frame.
+    for (const t of this.thumbs) t.group.visible = false
     for (const t of this.thumbs) {
       if (!t.body) continue
       const el = this.elementOf(t.entry.id)
@@ -135,8 +138,11 @@ export class ObjectCatalogueStage implements Stage {
         renderer.setScissorTest(true)
       }
       renderer.clearDepth()
+      t.group.visible = true
       renderer.render(this.root.parent ?? this.root, t.camera)
+      t.group.visible = false
     }
+    for (const t of this.thumbs) t.group.visible = true
     if (target) {
       target.viewport.set(0, 0, fullW, fullH)
       target.scissor.set(0, 0, fullW, fullH)

@@ -53,6 +53,29 @@ useSeoMeta({ title: () => t('credits.title'), description: () => t('credits.desc
       <h2 class="mono sub">{{ $t('credits.objects') }}</h2>
       <p class="note">{{ $t('credits.objectsNote') }}</p>
 
+      <h2 class="mono sub">{{ $t('credits.models') }}</h2>
+      <p class="note">
+        {{ $t('credits.modelsNote') }}
+        <a href="https://github.com/nasa/NASA-3D-Resources" target="_blank" rel="noopener" class="inline">NASA 3D Resources ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+      </p>
+      <!-- CC BY-SA requires the credit, a link to the licence and to the source: keep all three. -->
+      <p class="note">
+        {{ $t('credits.cometModelNote') }}
+        <a href="https://imagearchives.esac.esa.int/index.php?/page/navcam_3d_models" target="_blank" rel="noopener" class="inline">{{ $t('credits.cometModelCredit') }} ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+        ·
+        <a href="https://creativecommons.org/licenses/by-sa/3.0/igo/" target="_blank" rel="noopener" class="inline">CC BY-SA 3.0 IGO ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+      </p>
+
+      <h2 class="mono sub">{{ $t('credits.starsData') }}</h2>
+      <p class="note">
+        {{ $t('credits.starsNote') }}
+        <a href="https://github.com/astronexus/HYG-Database" target="_blank" rel="noopener" class="inline">HYG Database ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+        ·
+        <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener" class="inline">CC BY-SA 4.0 ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+        ·
+        <a href="https://github.com/ofrohn/d3-celestial" target="_blank" rel="noopener" class="inline">d3-celestial ↗<span class="sr-only"> {{ $t('a11y.newTab') }}</span></a>
+      </p>
+
       <h2 class="mono sub">{{ $t('credits.fonts') }}</h2>
       <p class="note">{{ $t('credits.fontsNote') }}</p>
       <p class="note">{{ $t('credits.code') }}</p>
@@ -72,5 +95,7 @@ useSeoMeta({ title: () => t('credits.title'), description: () => t('credits.desc
 .list a { color: var(--fg-soft); text-decoration: none; line-height: 1.6; }
 .list a:hover { color: var(--accent); }
 .src { display: block; }
+.inline { color: var(--fg-soft); text-decoration: none; border-bottom: 1px solid var(--line); }
+.inline:hover { color: var(--accent); }
 @media (max-width: 640px) { .list { grid-template-columns: 1fr; } .list dd { border-top: 0; padding-top: 0; } }
 </style>

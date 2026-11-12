@@ -11,7 +11,9 @@
     "label": "Main navigation",
     "observatory": "Observatory",
     "systems": "Planetary systems",
-    "objects": "Objects"
+    "objects": "Objects",
+    "create": "Create",
+    "constellations": "Constellations"
   },
   "space": {
     "unsupported": "WebGL 2 is not available in this browser: the 3D view cannot be shown.",
@@ -181,7 +183,13 @@
     "fontsNote": "Instrument Serif, Geist and Geist Mono, via Google Fonts (SIL Open Font License).",
     "code": "Everything else (procedural planets, atmospheres, rings, stars, sky, catalogue objects) is generated in code.",
     "objects": "Space objects",
-    "objectsNote": "Each object's figures come from the pages cited on its sheet (English Wikipedia, which links to the original publications). The 3D models, nebulae, galaxies and black-hole simulations are generated in code; only Pluto and Ceres use a real map."
+    "objectsNote": "Each object's figures come from the pages cited on its sheet (English Wikipedia, which links to the original publications). The nebulae, galaxies and black-hole simulations are generated in code; only Pluto and Ceres use a real map.",
+    "models": "3D models",
+    "modelsNote": "International Space Station, Hubble, James Webb and Voyager 1: models from NASA 3D Resources (free of copyright), compressed for the web. Tiangong and Sputnik 1 are modelled in code.",
+    "cometModelNote": "Nucleus of comet 67P/Churyumov–Gerasimenko: NAVCAM shape model of November 2015, compressed for the web and redistributed under the same licence.",
+    "cometModelCredit": "ESA/Rosetta/NAVCAM — CC BY-SA 3.0 IGO",
+    "starsData": "Stars and constellations",
+    "starsNote": "Positions, distances, magnitudes and spectra: HYG database v4.1 (astronexus, CC BY-SA 4.0), compiled from the Hipparcos, Gaia, Yale and Gliese catalogues; the site's star files derive from it and carry the same licence. Figure lines: d3-celestial by Olaf Frohn (BSD 3-Clause licence)."
   },
   "footer": {
     "credits": "Credits"
@@ -204,14 +212,23 @@
     },
     "appearance": {
       "texture": "Real surface map (NASA / USGS, public domain).",
-      "model": "Simplified 3D model at real proportions.",
+      "model": "Built 3D model at real dimensions, generated textures.",
       "simulation": "Simulation: light paths and effects computed, colours and scales illustrative.",
-      "impression": "Artist's view: shape and colours based on real images, procedural structure."
+      "impression": "Artist's view: shape and colours based on real images, procedural structure.",
+      "nasaModel": "NASA's official 3D model (NASA 3D Resources, public domain).",
+      "shapeModel": "Real shape of the nucleus: ESA's 3D model computed from Rosetta's images. Coma and tails: artist's view.",
+      "computedColour": "Colour computed by the cited study from the star's spectrum; surface: artist's view.",
+      "textureFilled": "Real New Horizons map (NASA, public domain). The southern hemisphere, in polar night during the 2015 flyby, was never imaged: it is filled in from the known terrain.",
+      "measuredShape": "Nucleus built from its dimensions measured by Vega and Giotto in 1986; fine relief, coma and tails: artist's view."
     },
     "categories": {
       "black-holes": {
         "name": "Black holes",
         "blurb": "Regions where gravity holds back even light. They are only seen through what surrounds them: the matter falling in and heating up, and the background starlight they bend."
+      },
+      "stars": {
+        "name": "Stars",
+        "blurb": "Stars with a surprising look. A white dwarf is not always white: when its very dense atmosphere holds planetary debris or carbon, it can look green, pink or blue."
       },
       "neutron-stars": {
         "name": "Neutron stars",
@@ -250,11 +267,13 @@
       "antenna": "Antenna",
       "aphelion": "Aphelion",
       "approach": "Approach speed",
+      "atmosphere": "Atmosphere",
       "blackHoleMass": "Black hole mass",
       "centralStar": "Central star",
       "closestEarth": "Closest to Earth",
       "collectingArea": "Collecting area",
       "companion": "Companion",
+      "colour": "Colour to the eye",
       "constellation": "Constellation",
       "crew": "Crew",
       "dawn": "Dawn probe",
@@ -265,6 +284,7 @@
       "distance": "Distance",
       "distanceEarth": "Distance from Earth",
       "eccentricity": "Eccentricity",
+      "envelope": "Gas envelope",
       "excessSpeed": "Hyperbolic excess speed",
       "expansion": "Expansion speed",
       "firstImage": "First image",
@@ -319,10 +339,26 @@
       "stars": "Stars",
       "sunDistance": "Sun's distance from centre",
       "sunshield": "Sunshield",
+      "study": "Study",
+      "surfaceTemperature": "Surface temperature",
       "supernova": "Supernova",
       "type": "Type",
       "universeAge": "Age of the Universe then",
-      "wavelengths": "Wavelengths"
+      "wavelengths": "Wavelengths",
+      "isco": "Innermost stable orbit",
+      "diskPeakTemperature": "Peak disk temperature",
+      "hawkingTemperature": "Hawking temperature",
+      "evaporation": "Evaporation (Hawking)",
+      "equatorSpeed": "Speed at the equator",
+      "spinDownPower": "Spin-down power",
+      "characteristicAge": "Characteristic age",
+      "dominantLine": "Dominant line",
+      "composition": "Composition (emission)",
+      "spectralType": "Spectral type",
+      "lifetime": "Lifetime",
+      "designation": "Designation",
+      "lightLeft": "Light set off",
+      "absoluteMagnitude": "Absolute magnitude"
     },
     "units": {
       "msun": "{v} M☉",
@@ -353,7 +389,140 @@
       "gyr": "{v} billion years",
       "joule": "{v} J",
       "m2": "{v} m²",
-      "w": "{v} W"
+      "w": "{v} W",
+      "hz": "{v} Hz",
+      "rsun": "{v} R☉",
+      "pct": "{v}%"
     }
+  },
+  "creator": {
+    "eyebrow": "Sandbox",
+    "title": "Create",
+    "description": "Pick a kind of object and tune its physics: it rebuilds live, with its computed figures. The page link keeps your settings.",
+    "type": "Kind of object",
+    "types": {
+      "black-hole": "Black hole",
+      "pulsar": "Pulsar",
+      "nebula": "Nebula",
+      "star": "Star"
+    },
+    "intro": {
+      "black-hole": "The lighter a black hole, the hotter its disk: a stellar one glows in X-rays, a giant one stays orange. Spin brings the disk's inner edge closer and powers the jets.",
+      "pulsar": "The period sets how fast it spins and the magnetic field how fast it brakes: a fast, strongly magnetised pulsar loses energy quickly and stays young. Above 10¹⁴ gauss it is a magnetar.",
+      "nebula": "A nebula's colour comes from the emission lines of its elements: hydrogen glows red, ionised oxygen teal, sulfur deep red. Percentages are relative.",
+      "star": "On the main sequence, mass sets everything: temperature, size, brightness, lifetime. Fast rotation strengthens magnetic activity and covers the star in spots. White dwarfs can take the colour of the elements in their atmosphere."
+    },
+    "params": {
+      "black-hole": {
+        "mass": "Mass",
+        "accretion": "Accretion (share of the Eddington limit)",
+        "spin": "Spin parameter",
+        "diskSize": "Disk size",
+        "jets": "Relativistic jets",
+        "jetColor": "Jet colour"
+      },
+      "pulsar": {
+        "period": "Rotation period",
+        "field": "Magnetic field",
+        "inclination": "Magnetic axis angle",
+        "beamColor": "Beam colour",
+        "windNebula": "Wind nebula",
+        "nebulaColor": "Nebula colour"
+      },
+      "nebula": {
+        "shape": "Shape",
+        "hydrogen": "Hydrogen",
+        "oxygen": "Oxygen",
+        "sulfur": "Sulfur",
+        "nitrogen": "Nitrogen",
+        "helium": "Helium",
+        "variant": "Variant"
+      },
+      "star": {
+        "stage": "Evolutionary stage",
+        "mass": "Mass",
+        "wdTemperature": "Surface temperature",
+        "pollutant": "Element in the atmosphere",
+        "pollution": "Share of that element",
+        "rotation": "Rotation period"
+      }
+    },
+    "units": {
+      "black-hole": {
+        "mass": "{v} M☉",
+        "accretion": "{v}%",
+        "spin": "{v}",
+        "diskSize": "{v} Rs"
+      },
+      "pulsar": {
+        "period": "{v} s",
+        "field": "{v} G",
+        "inclination": "{v}°"
+      },
+      "nebula": {
+        "hydrogen": "{v}%",
+        "oxygen": "{v}%",
+        "sulfur": "{v}%",
+        "nitrogen": "{v}%",
+        "helium": "{v}%",
+        "variant": "#{v}"
+      },
+      "star": {
+        "mass": "{v} M☉",
+        "wdTemperature": "{v} K",
+        "pollution": "{v}%",
+        "rotation": "{v} days"
+      }
+    },
+    "options": {
+      "shape": {
+        "emission": "Emission cloud (Orion-like)",
+        "ring": "Ring planetary nebula",
+        "helix": "Planetary nebula (Helix-like)",
+        "remnant": "Supernova remnant",
+        "pillars": "Dust pillars",
+        "complex": "Large complex (Carina-like)"
+      },
+      "stage": {
+        "main-sequence": "Main sequence",
+        "red-giant": "Red giant",
+        "white-dwarf": "White dwarf"
+      },
+      "pollutant": {
+        "none": "None (pure helium or hydrogen)",
+        "sodium": "Sodium (planetary debris) · green",
+        "carbon": "Carbon · pink",
+        "calcium": "Calcium (debris) · yellow",
+        "hydrogenHelium": "Mixed hydrogen and helium · cyan"
+      }
+    },
+    "share": "Copy link",
+    "copied": "Link copied",
+    "reset": "Defaults",
+    "results": "Computed figures",
+    "note": "Simplified textbook relations (Shakura–Sunyaev disk, dipole spin-down, mass–luminosity relations): orders of magnitude, not observatory models. Disk and line colours mapped to the visible."
+  },
+  "constellations": {
+    "eyebrow": "The sky",
+    "title": "Constellations",
+    "description": "The 88 official constellations. Seen from Earth their stars draw a figure; in space they are often unrelated to each other, at very different distances.",
+    "pageDescription": "The constellation {name} seen from Earth, then in 3D, with the real distance of each of its stars.",
+    "search": "Search a constellation",
+    "count": "{n} constellations",
+    "range": "{near} to {far} ly",
+    "notFound": "This constellation does not exist.",
+    "intro": "The figure joins {n} stars.",
+    "depth": "They look like neighbours, but the nearest is {near} light-years away and the farthest {far}: the figure only exists as seen from here.",
+    "viewLabel": "Point of view",
+    "viewSky": "From Earth",
+    "view3d": "In 3D",
+    "skyNote": "Earth's point of view: the size of each dot follows the star's apparent brightness.",
+    "depthNote": "Each star is at its real distance. The blue lines start from Earth (the blue dot): look along them and the figure comes back together.",
+    "skyHint": "Click a star for its fact sheet",
+    "clickHint": "Click a star, in the sky or in the list, to see its fact sheet.",
+    "stars": "Stars",
+    "outsideFigure": "outside the figure",
+    "tooltip": "{name} · {d} ly",
+    "dataNote": "Distances from Hipparcos and Gaia parallaxes (HYG database): beyond a few hundred light-years the uncertainty can exceed 20%."
   }
 }

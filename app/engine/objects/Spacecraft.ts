@@ -1,9 +1,12 @@
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferGeometry, CircleGeometry, CylinderGeometry, Group, LatheGeometry,
-  Mesh, MeshStandardMaterial, ShaderMaterial, Shape, ShapeGeometry, SphereGeometry, SRGBColorSpace, Sphere,
-  TextureLoader, Vector2, Vector3, type Material, type Object3D, type PerspectiveCamera, type Texture,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferGeometry, CylinderGeometry, Group, InstancedMesh, LatheGeometry,
+  Matrix4, Mesh, MeshStandardMaterial, Quaternion, ShaderMaterial, Sphere, SphereGeometry, SRGBColorSpace, TextureLoader,
+  TorusGeometry, Vector2, Vector3, type Material, type Object3D, type Texture,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { prepareForScene, sceneOf, serial } from './gltf'
+import { disposeModel, loadNasaModel, NASA_MODELS, type LoadedModel, type NasaModel } from './nasaModels'
 import { acquireCraftMaterials, releaseCraftMaterials, type CraftMaterials } from './spacecraftMaterials'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 
@@ -12,11 +15,13 @@ type CraftRender = Extract<ObjectRender, { kind: 'spacecraft' }>
 /** Every model is scaled so its bounding sphere has this radius: a 58 cm Sputnik and a 109 m ISS frame alike. */
 const MODEL_RADIUS = 2
 /**
- * Models whose thin booms inflate the bounding sphere: scaled up so the main body fills the frame and the booms
- * run off its edges (Voyager's magnetometer boom is 13 m against a 3.7 m dish).
+ * Models whose thin booms or antennas inflate the bounding sphere: scaled up so the main body fills the frame and
+ * the long parts run off its edges (Voyager's magnetometer boom is 13 m against a 3.7 m dish).
  */
-const FIT_BOOST: Partial<Record<CraftRender['model'], number>> = { 'voyager-1': 2.1, 'sputnik-1': 1.5 }
-/** Earth below low-orbit craft: radius in model radii, and the gap under the model. */
+const FIT_BOOST: Partial<Record<CraftRender['model'], number>> = { 'voyager-1': 2.2, 'sputnik-1': 1.6 }
+/** Model files authored standing up: turned (Euler x, y, z) so they lie as usually pictured. */
+const MODEL_ROTATION: Partial<Record<CraftRender['model'], [number, number, number]>> = { hubble: [0, 0, Math.PI / 2] }
+/** Earth below low-orbit craft: radius in world units, and the gap under the model. */
 const EARTH_RADIUS = 60
 const EARTH_GAP = 9
 /** Slow turn of the model on its stand, radians per second. */
@@ -40,21 +45,31 @@ void main(){
   vec3 V = normalize(cameraPosition - vPosW);
   vec3 N = normalize(vNW);
   // Seen from inside the shell (back faces): brightest just above the limb, on the day side.
-  float limb = pow(1.0 - abs(dot(N, V)), 3.0);
+  float limb = pow(max(1.0 - abs(dot(N, V)), 0.0), 3.0);
   float day = smoothstep(-0.25, 0.4, dot(-N, uSun));
   gl_FragColor = vec4(vec3(0.32, 0.55, 1.0) * limb * day * 1.6, 1.0);
 }
 `
 
+const VIEWS: Record<CraftRender['model'], BodyView> = {
+  'iss': { elevationDeg: 26, azimuthDeg: 60, distance: 4.4 },
+  'hubble': { elevationDeg: 14, azimuthDeg: 75, distance: 4.4 },
+  'jwst': { elevationDeg: 24, azimuthDeg: 45, distance: 4.4 },
+  'voyager-1': { elevationDeg: 16, azimuthDeg: 70, distance: 4.2 },
+  'tiangong': { elevationDeg: 28, azimuthDeg: 65, distance: 4.4 },
+  'sputnik-1': { elevationDeg: 12, azimuthDeg: 80, distance: 4.4 },
+}
+
 /**
- * A spacecraft model built from primitives at real proportions, with generated surface textures. Low-orbit craft
- * get the Earth's curved limb below them.
+ * A spacecraft. The ISS, Hubble, the JWST and Voyager 1 are NASA's own public-domain 3D models (loaded on demand);
+ * Tiangong and Sputnik 1, absent from NASA's library, are modelled here part by part at real dimensions, with
+ * generated textures. Low-orbit craft get the Earth's curved limb below them.
  */
 export class Spacecraft implements SpaceBody {
   readonly root = new Group()
   readonly radius = MODEL_RADIUS
   readonly view: BodyView
-  readonly minDistance = 0.9
+  readonly minDistance = 0.6
   readonly animated = true
 
   private readonly model = new Group()
@@ -62,92 +77,244 @@ export class Spacecraft implements SpaceBody {
   private readonly geometries: BufferGeometry[] = []
   private readonly extraMaterials: Material[] = []
   private readonly textures: Texture[] = []
-  /** Part the model is centred on, when its bounding sphere is pulled off-centre by long booms. */
-  private centreOn: Object3D | null = null
+  private loaded: LoadedModel | null = null
+  private disposed = false
+  private usesEarth = false
 
   constructor(render: CraftRender, ctx: BodyContext) {
     this.mats = acquireCraftMaterials()
-    const built = new Group()
-    const builders: Record<CraftRender['model'], (g: Group) => void> = {
-      'iss': (g) => this.buildIss(g),
-      'hubble': (g) => this.buildHubble(g),
-      'jwst': (g) => this.buildJwst(g),
-      'voyager-1': (g) => this.buildVoyager(g),
-      'tiangong': (g) => this.buildTiangong(g),
-      'sputnik-1': (g) => this.buildSputnik(g),
-    }
-    builders[render.model](built)
-    normalize(built, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1), this.centreOn)
-    this.model.add(built)
     this.root.add(this.model)
+    this.view = VIEWS[render.model]
     if (render.earth) this.addEarth(ctx)
-    const views: Record<CraftRender['model'], BodyView> = {
-      'iss': { elevationDeg: 28, azimuthDeg: 75, distance: 4.6 },
-      'hubble': { elevationDeg: 16, azimuthDeg: 80, distance: 4.4 },
-      'jwst': { elevationDeg: 22, azimuthDeg: 40, distance: 4.6 },
-      'voyager-1': { elevationDeg: 18, azimuthDeg: 70, distance: 4.2 },
-      'tiangong': { elevationDeg: 30, azimuthDeg: 70, distance: 4.4 },
-      'sputnik-1': { elevationDeg: 14, azimuthDeg: 80, distance: 4.4 },
+
+    if (render.model in NASA_MODELS) {
+      const model = render.model as NasaModel
+      // One model at a time across the page, shaders compiled and textures uploaded before it is shown.
+      serial(async () => {
+        if (this.disposed) return
+        const loaded = await loadNasaModel(model, this.mats, ctx.preview)
+        const scene = loaded.root
+        // The page may have been left while the file was loading.
+        if (this.disposed) {
+          disposeModel(scene, this.mats)
+          return
+        }
+        const rot = MODEL_ROTATION[render.model]
+        if (rot) scene.rotation.set(...rot)
+        fit(scene, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1))
+        await prepareForScene(ctx.renderer, scene, sceneOf(this.root))
+        if (this.disposed) {
+          disposeModel(scene, this.mats)
+          return
+        }
+        this.loaded = loaded
+        // Start from the default view whatever the drift did while the file was loading.
+        this.model.rotation.y = 0
+        this.model.add(scene)
+        ctx.invalidate()
+      }).catch((err) => console.error('[spacecraft] model failed to load', NASA_MODELS[model], err))
+    } else {
+      const built = new Group()
+      if (render.model === 'tiangong') this.buildTiangong(built)
+      else this.buildSputnik(built)
+      this.mergeByMaterial(built)
+      fit(built, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1))
+      this.model.add(built)
     }
-    this.view = views[render.model]
   }
 
   update(dt: number): void {
     this.model.rotation.y += dt * DRIFT
+    // The detail is measured in the model's own frame, which the drift just turned.
+    if (this.loaded) this.loaded.detail.track(this.loaded.root)
   }
 
   dispose(): void {
+    this.disposed = true
+    if (this.loaded) disposeModel(this.loaded.root, this.mats)
     this.geometries.forEach((g) => g.dispose())
     this.extraMaterials.forEach((m) => m.dispose())
     this.textures.forEach((t) => t.dispose())
     releaseCraftMaterials()
+    if (this.usesEarth) releaseEarthTexture()
     this.root.removeFromParent()
   }
 
-  // --- helpers -------------------------------------------------------------------------------------------------
+  // --- building blocks -----------------------------------------------------------------------------------------
+
+  /**
+   * Bakes the built model's plain meshes into one mesh per material (and attribute layout). Tiangong is a few
+   * hundred parts; drawn one call each, its thumbnail alone cost as much CPU per frame as the rest of the page.
+   * Instanced parts (handrails, bolts) are already one call and stay as they are.
+   */
+  private mergeByMaterial(root: Group): void {
+    root.updateMatrixWorld(true)
+    const buckets = new Map<string, { material: Material; geos: BufferGeometry[]; meshes: Mesh[] }>()
+    root.traverse((o) => {
+      const mesh = o as Mesh
+      if (!mesh.isMesh || (mesh as InstancedMesh).isInstancedMesh || Array.isArray(mesh.material)) return
+      const g = mesh.geometry
+      // mergeGeometries needs identical attribute sets and all-or-none indices.
+      const key = `${mesh.material.uuid}|${Object.keys(g.attributes).sort().join(',')}|${g.index ? 'i' : 'n'}`
+      let b = buckets.get(key)
+      if (!b) buckets.set(key, (b = { material: mesh.material, geos: [], meshes: [] }))
+      b.geos.push(g.clone().applyMatrix4(mesh.matrixWorld))
+      b.meshes.push(mesh)
+    })
+    for (const b of buckets.values()) {
+      if (b.meshes.length < 2) {
+        b.geos.forEach((g) => g.dispose())
+        continue
+      }
+      const merged = mergeGeometries(b.geos, false)
+      b.geos.forEach((g) => g.dispose())
+      if (!merged) continue
+      for (const mesh of b.meshes) {
+        mesh.removeFromParent()
+        mesh.geometry.dispose()
+        const i = this.geometries.indexOf(mesh.geometry)
+        if (i >= 0) this.geometries.splice(i, 1)
+      }
+      root.add(new Mesh(this.keep(merged), b.material))
+    }
+  }
+
+  private keep<T extends BufferGeometry>(geo: T): T {
+    this.geometries.push(geo)
+    return geo
+  }
 
   private mesh(geo: BufferGeometry, mat: Material, parent: Object3D, x = 0, y = 0, z = 0): Mesh {
-    this.geometries.push(geo)
-    const m = new Mesh(geo, mat)
+    const m = new Mesh(this.keep(geo), mat)
     m.position.set(x, y, z)
     parent.add(m)
     return m
   }
 
-  /** Cylinder along z, centred at z. */
-  private tube(parent: Object3D, radius: number, length: number, z: number, mat: Material, x = 0, y = 0, segments = 48): Mesh {
-    const m = this.mesh(new CylinderGeometry(radius, radius, length, segments, 1), mat, parent, x, y, z)
-    m.rotation.x = Math.PI / 2
-    return m
+  /** Lathe-turned body along +z from a (radius, z) profile: modules with tapers, flanges and end domes. */
+  private turned(parent: Object3D, profile: [number, number][], mat: Material, segments = 64): Mesh {
+    // LatheGeometry turns around y: build along y, then lay the result along z. Its faces point outwards only
+    // when the profile runs towards +y, so profiles written aft-wards are reversed first.
+    const ordered = profile[0]![1] > profile[profile.length - 1]![1] ? [...profile].reverse() : profile
+    const geo = new LatheGeometry(ordered.map(([r, z]) => new Vector2(r, z)), segments)
+    geo.rotateX(Math.PI / 2)
+    return this.mesh(geo, mat, parent)
   }
 
-  /** Pressurised module lying along x. */
-  private sideModule(parent: Object3D, radius: number, length: number, x: number, y: number, z: number): Mesh {
-    const mod = this.mesh(new CylinderGeometry(radius, radius, length, 48, 1), this.mats.whiteBlanket, parent, x, y, z)
-    mod.rotation.z = Math.PI / 2
-    return mod
+  /** Raised ring (flange, docking collar) around the z axis. */
+  private ring(parent: Object3D, radius: number, tube: number, z: number, mat: Material): Mesh {
+    return this.mesh(new TorusGeometry(radius, tube, 12, 96), mat, parent, 0, 0, z)
   }
 
   /** Thin rod between two points. */
-  private rod(parent: Object3D, a: Vector3, b: Vector3, radius: number, mat: Material): Mesh {
+  private rod(parent: Object3D, a: Vector3, b: Vector3, radius: number, mat: Material, radiusEnd = radius): Mesh {
     const dir = b.clone().sub(a)
-    const m = this.mesh(new CylinderGeometry(radius, radius, dir.length(), 8, 1), mat, parent)
+    const m = this.mesh(new CylinderGeometry(radiusEnd, radius, dir.length(), 10, 1), mat, parent)
     m.position.copy(a).addScaledVector(dir, 0.5)
     m.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir.normalize())
     return m
   }
 
-  /** Flat panel (solar array blanket, radiator), centred, in the plane given by its two axes. */
-  private panel(parent: Object3D, w: number, h: number, mat: Material, x: number, y: number, z: number): Mesh {
-    return this.mesh(new BoxGeometry(w, h, 0.04), mat, parent, x, y, z)
+  /** Many identical small parts (bolts, handrail stand-offs) in one draw call. */
+  private instances(parent: Object3D, geo: BufferGeometry, mat: Material, matrices: Matrix4[]): InstancedMesh {
+    const im = new InstancedMesh(this.keep(geo), mat, matrices.length)
+    matrices.forEach((m, i) => im.setMatrixAt(i, m))
+    im.instanceMatrix.needsUpdate = true
+    parent.add(im)
+    return im
+  }
+
+  /**
+   * EVA handrails running along a cylinder (axis z) at several azimuths: a thin rail on stand-offs every 0.6 m,
+   * as on every crewed module.
+   */
+  private handrails(parent: Object3D, radius: number, z0: number, z1: number, azimuths: number[]): void {
+    const mat = this.mats.goldFoil
+    const standoffs: Matrix4[] = []
+    const q = new Quaternion()
+    for (const az of azimuths) {
+      const r = radius + 0.09
+      const x = Math.cos(az) * r, y = Math.sin(az) * r
+      this.rod(parent, new Vector3(x, y, z0), new Vector3(x, y, z1), 0.018, mat)
+      q.setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(Math.cos(az), Math.sin(az), 0))
+      for (let z = z0; z <= z1; z += 0.6) {
+        standoffs.push(new Matrix4().compose(new Vector3(Math.cos(az) * (radius + 0.045), Math.sin(az) * (radius + 0.045), z), q, new Vector3(1, 1, 1)))
+      }
+    }
+    this.instances(parent, new CylinderGeometry(0.014, 0.014, 0.09, 6), mat, standoffs)
+  }
+
+  /** Bolt heads around a ring of the given radius in the plane z = const (flange fasteners). */
+  private boltCircle(parent: Object3D, radius: number, z: number, count: number, size: number, mat: Material): void {
+    const ms: Matrix4[] = []
+    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(0, 0, 1))
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2
+      ms.push(new Matrix4().compose(new Vector3(Math.cos(a) * radius, Math.sin(a) * radius, z), q, new Vector3(1, 1, 1)))
+    }
+    this.instances(parent, new CylinderGeometry(size, size, size * 1.2, 6), mat, ms)
+  }
+
+  /**
+   * Androgynous docking port (as on Tiangong and Shenzhou): a collar, a guide ring and three guide petals,
+   * facing +z in its own frame.
+   */
+  private dockingPort(parent: Object3D, frame: Group): void {
+    const m = this.mats
+    parent.add(frame)
+    this.turned(frame, [[0, 0], [0.62, 0], [0.62, 0.35], [0.7, 0.35], [0.7, 0.45], [0.5, 0.45]], m.brushed, 48)
+    this.ring(frame, 0.6, 0.04, 0.5, m.metal)
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2
+      const petal = this.mesh(new BoxGeometry(0.28, 0.06, 0.32), m.metal, frame, Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0.62)
+      petal.rotation.z = a + Math.PI / 2
+      petal.rotation.x = 0.35
+    }
+  }
+
+  /**
+   * Flexible solar wing: a lattice mast with a blanket on each side, folded like an accordion (panels tilt
+   * alternately by a degree or two, so light catches each fold). Lies along +z from the origin, facing +x.
+   */
+  private flexWing(parent: Object3D, length: number, width: number, panels: number): Group {
+    const m = this.mats
+    const wing = new Group()
+    parent.add(wing)
+    this.rod(wing, new Vector3(0, 0, 0), new Vector3(0, 0, length), 0.09, m.metal)
+    this.mesh(new BoxGeometry(0.3, 0.3, length), m.truss, wing, 0, 0, length / 2)
+    const pl = length / panels
+    const geo = this.keep(new BoxGeometry(0.02, width, pl * 0.985))
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < panels; i++) {
+        const p = new Mesh(geo, m.cellsFlex)
+        p.position.set(0, side * (width / 2 + 0.25), pl * (i + 0.5))
+        p.rotation.y = (i % 2 ? 1 : -1) * 0.025
+        wing.add(p)
+      }
+      // Tension bars at the root and tip of each blanket.
+      this.mesh(new BoxGeometry(0.12, width, 0.12), m.metal, wing, 0, side * (width / 2 + 0.25), length)
+      this.mesh(new BoxGeometry(0.12, width, 0.12), m.metal, wing, 0, side * (width / 2 + 0.25), 0.1)
+    }
+    return wing
+  }
+
+  /** Rigid panel wing for visiting ships: a short yoke and a few hinged panels. */
+  private rigidWing(parent: Object3D, panels: number, pw: number, ph: number): Group {
+    const m = this.mats
+    const wing = new Group()
+    parent.add(wing)
+    this.rod(wing, new Vector3(0, 0, 0), new Vector3(0, 0.5, 0), 0.04, m.metal)
+    for (let i = 0; i < panels; i++) {
+      const p = this.mesh(new BoxGeometry(pw, ph * 0.97, 0.03), m.cellsFlex, wing, 0, 0.5 + ph * (i + 0.5), 0)
+      p.rotation.y = Math.PI / 2
+    }
+    return wing
   }
 
   private addEarth(ctx: BodyContext): void {
     const earth = new Group()
-    const tex = new TextureLoader().load(EARTH_TEXTURE, () => ctx.invalidate())
-    tex.colorSpace = SRGBColorSpace
-    tex.anisotropy = 8
-    this.textures.push(tex)
+    const tex = acquireEarthTexture(ctx.invalidate)
+    this.usesEarth = true
     const mat = new MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 })
     this.extraMaterials.push(mat)
     const ground = this.mesh(new SphereGeometry(EARTH_RADIUS, 128, 96), mat, earth)
@@ -163,248 +330,217 @@ export class Spacecraft implements SpaceBody {
     this.root.add(earth)
   }
 
-  // --- models (metres; normalised afterwards) ------------------------------------------------------------------
+  // --- models built here (metres; fitted afterwards) -----------------------------------------------------------
 
   /**
-   * ISS: the 94 m integrated truss along x carrying eight solar-array wings and the radiators, over a chain of
-   * pressurised modules along z (Harmony, Destiny, Unity, Zarya, Zvezda) with Columbus, Kibo and Nauka.
-   */
-  private buildIss(g: Group): void {
-    const m = this.mats
-    this.mesh(new BoxGeometry(94, 2.6, 2.6), m.truss, g, 0, 4, 0)
-    // Solar Alpha Rotary Joints and the photovoltaic radiators at the outboard truss segments.
-    for (const sx of [-1, 1]) {
-      this.mesh(new CylinderGeometry(1.8, 1.8, 2.2, 32), m.metal, g, sx * 25, 4, 0).rotation.z = Math.PI / 2
-      // Eight wings: at each end, two masts (inboard, outboard), each with an upper and a lower wing.
-      for (const x of [31, 44]) {
-        this.rod(g, new Vector3(sx * x, 4 - 36, 0), new Vector3(sx * x, 4 + 36, 0), 0.25, m.metal)
-        for (const sy of [-1, 1]) {
-          for (const sz of [-1, 1]) this.panel(g, 4.6, 34, m.cellsCopper, sx * x, 4 + sy * 19.5, sz * 2.9).rotation.y = Math.PI / 2
-        }
-        this.panel(g, 3.4, 13, m.radiator, sx * x + sx * -4, 4, -6).rotation.x = Math.PI / 2
-      }
-      // Main heat-rejection radiators: three panels per side, hanging below the inboard truss.
-      for (let k = 0; k < 3; k++) {
-        const p = this.panel(g, 11.4, 3.2, m.radiator, sx * (11 + k * 0.4), -3 - k * 3.4, -1.5)
-        p.rotation.x = Math.PI / 2 - 0.25
-      }
-    }
-    // Pressurised chain along z.
-    this.tube(g, 2.2, 7.2, 13, m.whiteBlanket)      // Harmony
-    this.tube(g, 2.15, 8.5, 3.8, m.whiteBlanket)    // Destiny (under the truss)
-    this.tube(g, 2.3, 5.5, -3.2, m.whiteBlanket)    // Unity
-    this.tube(g, 2.05, 12.6, -12.3, m.whiteBlanket) // Zarya
-    this.tube(g, 2.1, 13.1, -25.2, m.whiteBlanket)  // Zvezda
-    // Zvezda's own wings (the Russian segment's blue arrays).
-    for (const sx of [-1, 1]) this.panel(g, 12, 3.3, m.cellsBlue, sx * 9, 0, -28).rotation.x = Math.PI / 2
-    // Columbus and Kibo on Harmony's sides, Kibo's exposed facility, Tranquility with the Cupola, Nauka.
-    this.sideModule(g, 2.25, 7, -6.5, 0, 13)        // Columbus
-    this.sideModule(g, 2.2, 11.2, 9.5, 0, 13)       // Kibo
-    this.mesh(new BoxGeometry(5, 1.5, 5), m.whitePaint, g, 17.5, 0, 13)
-    this.sideModule(g, 2.25, 6.7, -5.5, 0, -3.2)    // Tranquility
-    this.mesh(new CylinderGeometry(1.5, 1.5, 1.5, 7), m.metal, g, -9.5, -0.8, -3.2) // Cupola
-    // Nauka hangs below Zvezda (a y-axis cylinder needs no rotation).
-    this.mesh(new CylinderGeometry(2.1, 2.1, 13, 48), m.whiteBlanket, g, 0, -7.5, -21)
-    // Canadarm2 resting along the truss.
-    this.rod(g, new Vector3(-6, 6.2, 1), new Vector3(8, 6.2, 1), 0.2, m.whitePaint)
-    this.rod(g, new Vector3(8, 6.2, 1), new Vector3(14, 9, 3), 0.2, m.whitePaint)
-  }
-
-  /** Hubble: a 13.2 m tube (aft equipment section, narrower forward light shield), open aperture door, two rigid
-   *  solar arrays and two high-gain antenna booms. */
-  private buildHubble(g: Group): void {
-    const m = this.mats
-    this.tube(g, 2.1, 5, -4.1, m.silverFoil, 0, 0, 64)
-    this.tube(g, 2.12, 0.15, -1.6, m.metal, 0, 0, 64)
-    this.tube(g, 1.55, 8.2, 2.5, m.silverFoil, 0, 0, 64)
-    this.tube(g, 2.1, 0.4, -6.75, m.darkStructure, 0, 0, 64)
-    // Aperture door, swung open on its hinge.
-    const door = new Group()
-    door.position.set(0, 1.55, 6.6)
-    g.add(door)
-    this.mesh(new CircleGeometry(1.55, 48), m.silverFoil, door, 0, -1.55, 0)
-    door.rotation.x = -1.9
-    // Dark interior seen through the opening.
-    const baffle = this.mesh(new CircleGeometry(1.5, 48), m.darkStructure, g, 0, 0, 6.55)
-    baffle.rotation.y = Math.PI
-    // Solar arrays: 7.1 × 2.6 m wings on masts from the forward shell.
-    for (const sx of [-1, 1]) {
-      this.rod(g, new Vector3(sx * 1.5, 0, -0.6), new Vector3(sx * 9, 0, -0.6), 0.05, m.metal)
-      this.panel(g, 7.1, 2.6, m.cellsBlue, sx * 5.6, 0, -0.6).rotation.x = Math.PI / 2 - 0.2
-    }
-    // High-gain antennas on booms above and below.
-    for (const sy of [-1, 1]) {
-      this.rod(g, new Vector3(0, sy * 2.1, -2.5), new Vector3(0, sy * 4.6, -2.5), 0.06, m.metal)
-      const dish = this.mesh(dishGeometry(0.65, 0.18), m.whitePaint, g, 0, sy * 4.7, -2.5)
-      dish.rotation.x = sy > 0 ? 0 : Math.PI
-    }
-  }
-
-  /**
-   * JWST: 18 gold hexagonal segments (6.5 m), the secondary mirror on its tripod, the five-layer 21 × 14 m
-   * sunshield, and the spacecraft bus with its solar panel and antenna under it.
-   */
-  private buildJwst(g: Group): void {
-    const m = this.mats
-    const mirror = new Group()
-    mirror.position.set(0, 4.2, 0)
-    mirror.rotation.x = -0.32
-    g.add(mirror)
-    const flat = 1.32
-    const size = flat / Math.sqrt(3) // hexagon circumradius from its flat-to-flat width
-    const hex = new CylinderGeometry(size * 0.985, size * 0.985, 0.08, 6)
-    hex.rotateX(Math.PI / 2)
-    hex.rotateZ(Math.PI / 6)
-    this.geometries.push(hex)
-    for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++) {
-      const s = -q - r
-      const ring = Math.max(Math.abs(q), Math.abs(r), Math.abs(s))
-      if (ring === 0 || ring > 2) continue
-      const x = flat * (q + r / 2)
-      const y = flat * (r * Math.sqrt(3) / 2)
-      // A paraboloid: each segment sits a little further forward and tilts towards the focus.
-      const z = (x * x + y * y) / (4 * 16)
-      const seg = new Mesh(hex, m.goldMirror)
-      seg.position.set(x, y, z)
-      seg.lookAt(new Vector3(0, 0, 16))
-      mirror.add(seg)
-    }
-    this.mesh(new BoxGeometry(6.6, 6.2, 0.6), m.darkStructure, mirror, 0, 0, -0.45)
-    // Secondary mirror 7.4 m in front, on three struts.
-    const sm = this.mesh(new CylinderGeometry(0.37, 0.37, 0.1, 6), m.goldMirror, mirror, 0, 0, 7.4)
-    sm.rotation.x = Math.PI / 2
-    for (const [ax, ay] of [[0, -3.2], [-2.6, 1.8], [2.6, 1.8]] as const) {
-      this.rod(mirror, new Vector3(ax, ay, 0.2), new Vector3(0, 0, 7.3), 0.06, m.darkStructure)
-    }
-    // Sunshield: five layers in a stretched hexagon, slightly separated and opening like a fan.
-    const outline = new Shape()
-    const pts: [number, number][] = [[10.6, 0], [5.4, 7.1], [-5.4, 7.1], [-10.6, 0], [-5.4, -7.1], [5.4, -7.1]]
-    outline.moveTo(...pts[0]!)
-    for (const p of pts.slice(1)) outline.lineTo(...p)
-    outline.closePath()
-    const shieldGeo = new ShapeGeometry(outline)
-    shieldGeo.rotateX(-Math.PI / 2)
-    this.geometries.push(shieldGeo)
-    for (let k = 0; k < 5; k++) {
-      const layer = new Mesh(shieldGeo, m.sunshield)
-      layer.position.set(0, -0.4 - k * 0.28, 0)
-      layer.scale.setScalar(1 - k * 0.025)
-      g.add(layer)
-    }
-    this.mesh(new BoxGeometry(1.6, 3.8, 1.6), m.darkStructure, g, 0, 1.8, -1)
-    // Bus below the shield: solar panel and high-gain antenna.
-    this.mesh(new BoxGeometry(3, 1.4, 3), m.goldFoil, g, 0, -2.6, 0)
-    this.panel(g, 5.9, 2.5, m.cellsDark, 0, -3.4, -3.4).rotation.x = Math.PI / 2 - 0.3
-    const dish = this.mesh(dishGeometry(0.6, 0.15), m.whitePaint, g, 1.2, -3.6, 1.5)
-    dish.rotation.x = Math.PI
-  }
-
-  /**
-   * Voyager 1: the 3.7 m high-gain dish over the ten-sided bus, three RTGs on their boom, the science boom and
-   * scan platform, the 13 m magnetometer boom, and the Golden Record on the bus.
-   */
-  private buildVoyager(g: Group): void {
-    const m = this.mats
-    this.centreOn = this.mesh(dishGeometry(1.85, 0.55), m.whitePaint, g, 0, 0.9, 0)
-    this.rod(g, new Vector3(0, 0.9, 0), new Vector3(0, 2.2, 0), 0.04, m.metal)
-    this.mesh(new CylinderGeometry(0.25, 0.25, 0.08, 24), m.whitePaint, g, 0, 2.25, 0)
-    this.mesh(new CylinderGeometry(0.89, 0.89, 0.47, 10), m.goldFoil, g, 0, 0.2, 0)
-    this.mesh(new CylinderGeometry(0.4, 0.55, 0.5, 24), m.darkStructure, g, 0, -0.3, 0)
-    // Golden Record on the side of the bus.
-    const rec = this.mesh(new CylinderGeometry(0.16, 0.16, 0.02, 32), m.record, g, 0.9, 0.2, 0.05)
-    rec.rotation.z = Math.PI / 2
-    // RTG boom: three finned generators end to end.
-    const rtgStart = new Vector3(-0.85, 0, 0)
-    const rtgDir = new Vector3(-1, -0.25, 0.35).normalize()
-    this.rod(g, rtgStart, rtgStart.clone().addScaledVector(rtgDir, 3.2), 0.035, m.metal)
-    for (let k = 0; k < 3; k++) {
-      const c = rtgStart.clone().addScaledVector(rtgDir, 1.6 + k * 0.6)
-      const body = this.mesh(new CylinderGeometry(0.2, 0.2, 0.5, 24), m.darkStructure, g)
-      body.position.copy(c)
-      body.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), rtgDir)
-      for (let f = 0; f < 6; f++) {
-        const fin = this.mesh(new BoxGeometry(0.02, 0.48, 0.16), m.darkStructure, body)
-        const a = (f / 6) * Math.PI * 2
-        fin.position.set(Math.cos(a) * 0.27, 0, Math.sin(a) * 0.27)
-        fin.rotation.y = -a
-      }
-    }
-    // Science boom and scan platform with the cameras.
-    const sciStart = new Vector3(0.85, -0.1, 0)
-    const sciEnd = new Vector3(3.1, -0.5, -0.4)
-    this.rod(g, sciStart, sciEnd, 0.04, m.metal)
-    this.mesh(new BoxGeometry(0.5, 0.45, 0.45), m.goldFoil, g, sciEnd.x, sciEnd.y, sciEnd.z)
-    this.tube(g, 0.09, 0.9, sciEnd.z - 0.4, m.darkStructure, sciEnd.x + 0.1, sciEnd.y + 0.2)
-    this.tube(g, 0.06, 0.6, sciEnd.z - 0.3, m.darkStructure, sciEnd.x - 0.15, sciEnd.y + 0.22)
-    // Magnetometer boom (13 m) and the two 10 m plasma-wave antennas.
-    this.rod(g, new Vector3(0.6, -0.2, 0.6), new Vector3(9.5, -1.5, 9.2), 0.03, m.whitePaint)
-    this.rod(g, new Vector3(-0.3, -0.4, 0.5), new Vector3(-5.5, -8.5, 3.8), 0.012, m.metal)
-    this.rod(g, new Vector3(-0.3, -0.4, 0.5), new Vector3(-8.8, -3.2, 3.8), 0.012, m.metal)
-  }
-
-  /**
-   * Tiangong: the Tianhe core along z, its spherical docking node, the Wentian and Mengtian labs forming the T,
-   * their large flexible arrays, and a Shenzhou crew ship and Tianzhou freighter docked.
+   * Tiangong as completed in November 2022: the Tianhe core along z (spherical node, 2.8 m and 4.2 m sections,
+   * service section with engines), Wentian and Mengtian forming the T along x with their large flexible wings,
+   * a Shenzhou crew ship at the nadir port and a Tianzhou freighter at the aft port.
    */
   private buildTiangong(g: Group): void {
     const m = this.mats
-    this.tube(g, 2.1, 10.5, -5.5, m.whiteBlanket)
-    this.tube(g, 1.4, 5, 2.3, m.whiteBlanket)
-    this.mesh(new SphereGeometry(1.4, 32, 24), m.whiteBlanket, g, 0, 0, 5.5)
-    for (const sx of [-1, 1]) {
-      const lab = this.tube(g, 2.1, 17.9, 0, m.whiteBlanket)
-      lab.rotation.set(0, 0, Math.PI / 2)
-      lab.position.set(sx * 10.4, 0, 5.5)
-      // Each lab carries two large flexible wings at its far end, along z.
-      this.rod(g, new Vector3(sx * 17, 0, 5.5 - 27), new Vector3(sx * 17, 0, 5.5 + 27), 0.2, m.metal)
-      // Long axis along z, face turned towards the light (+x).
-      for (const sz of [-1, 1]) this.panel(g, 25, 4.2, m.cellsDark, sx * 17, 0, 5.5 + sz * 14).rotation.y = Math.PI / 2
+    const tianhe = new Group()
+    g.add(tianhe)
+    // Node (spherical docking hub), then the core module running aft along -z.
+    this.mesh(new SphereGeometry(1.4, 64, 48), m.quilt, tianhe)
+    this.turned(tianhe, [
+      [1.25, -1.2], [1.42, -1.3], [1.42, -5.4], [1.5, -5.45], [1.5, -5.55], [2.1, -6.5], [2.12, -6.55], [2.12, -12.3],
+      [2.2, -12.35], [2.2, -12.45], [2.12, -12.5], [2.12, -15.2], [1.6, -15.9], [0.75, -16.2], [0.75, -16.5],
+    ].map(([r, z]) => [r, z] as [number, number]), m.quilt, 96)
+    for (const z of [-1.3, -5.5, -12.4, -15.2]) this.ring(tianhe, z < -6 ? 2.14 : 1.44, 0.035, z, m.brushed)
+    this.boltCircle(tianhe, 2.14, -12.32, 64, 0.025, m.metal)
+    // Radiator panels wrapped on the large section, and the handrails along both sections.
+    for (let k = 0; k < 4; k++) {
+      const strip = this.mesh(new CylinderGeometry(2.16, 2.16, 4.6, 32, 1, true, k * Math.PI / 2 + 0.3, 0.9), m.radiator, tianhe, 0, 0, -9.6)
+      strip.rotation.x = Math.PI / 2
     }
-    // Tianhe's own smaller arrays, along x.
-    for (const sx of [-1, 1]) this.panel(g, 10, 2.8, m.cellsDark, sx * 7.5, 0, -6).rotation.x = Math.PI / 2
-    // Tianzhou at the aft port, Shenzhou at the node's nadir port.
-    this.tube(g, 1.7, 10.6, -16, m.whitePaint)
-    for (const sx of [-1, 1]) this.panel(g, 6, 1.6, m.cellsDark, sx * 5, 0, -17).rotation.x = Math.PI / 2
-    this.mesh(new CylinderGeometry(1.4, 1.4, 8.5, 48), m.whitePaint, g, 0, -5.6, 5.5)
-    for (const sx of [-1, 1]) this.panel(g, 5, 1.2, m.cellsDark, sx * 3.6, -7.5, 5.5).rotation.x = Math.PI / 2
+    this.handrails(tianhe, 1.42, -5.2, -1.6, [0.4, 2.0, 3.6, 5.2])
+    this.handrails(tianhe, 2.12, -12.1, -6.8, [0.8, 2.4, 4.0, 5.6])
+    // Main engines and attitude thrusters at the back.
+    for (const [x, y] of [[0.55, 0], [-0.55, 0]] as const) {
+      const bell = this.turned(tianhe, [[0.12, 0], [0.18, -0.15], [0.32, -0.6], [0.35, -0.62]], m.darkStructure, 32)
+      bell.position.set(x, y + 1.3, -15.3)
+    }
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4
+      this.mesh(new BoxGeometry(0.3, 0.3, 0.4), m.goldFoil, tianhe, Math.cos(a) * 2.0, Math.sin(a) * 2.0, -14.6)
+    }
+    // Tianhe's robotic arm, stowed along the large section, and a communications dish.
+    const armA = new Vector3(1.0, 2.3, -6.9), armB = new Vector3(1.0, 2.3, -11.6), armC = new Vector3(-0.6, 2.4, -14.4)
+    this.rod(tianhe, armA, armB, 0.13, m.whitePaint)
+    this.rod(tianhe, armB, armC, 0.13, m.whitePaint)
+    for (const p of [armA, armB, armC]) this.mesh(new CylinderGeometry(0.22, 0.22, 0.4, 20), m.brushed, tianhe, p.x, p.y, p.z)
+    this.rod(tianhe, new Vector3(-1.6, 1.4, -8), new Vector3(-2.6, 2.6, -8), 0.04, m.metal)
+    const dish = this.mesh(new LatheGeometry([0, 0.15, 0.3, 0.45, 0.6].map((r) => new Vector2(r, r * r * 0.5)), 32), m.whitePaint, tianhe, -2.65, 2.65, -8)
+    dish.rotation.z = Math.PI / 4
+    // Docking ports: forward and zenith on the node, aft on Tianhe.
+    const fwd = new Group(); fwd.position.set(0, 0, 1.25)
+    this.dockingPort(tianhe, fwd)
+    const zen = new Group(); zen.position.set(0, 1.25, 0); zen.rotation.x = -Math.PI / 2
+    this.dockingPort(tianhe, zen)
+
+    // Wentian (+x) and Mengtian (−x): a 4.2 m work cabin, a narrower resource cabin carrying the big wings.
+    for (const side of [1, -1]) {
+      const lab = new Group()
+      lab.rotation.y = side * Math.PI / 2
+      g.add(lab)
+      this.turned(lab, [
+        [0.75, 1.3], [0.75, 1.6], [1.6, 1.9], [2.12, 2.6], [2.12, 10.6], [2.2, 10.65], [2.2, 10.75], [2.0, 10.8],
+        [1.6, 11.6], [1.6, 17.4], [1.2, 17.8], [0.5, 18.0], [0, 18.05],
+      ], m.quilt, 96)
+      for (const z of [2.6, 10.7, 11.6, 17.4]) this.ring(lab, z > 11 ? 1.62 : 2.14, 0.035, z, m.brushed)
+      this.handrails(lab, 2.12, 3.0, 10.2, [0.3, 1.9, 3.5, 5.1])
+      this.handrails(lab, 1.6, 11.9, 17.0, [1.0, 4.1])
+      for (let k = 0; k < 3; k++) {
+        const strip = this.mesh(new CylinderGeometry(2.15, 2.15, 6.5, 32, 1, true, k * 2.1 + 0.5, 0.8), m.radiator, lab, 0, 0, 6.6)
+        strip.rotation.x = Math.PI / 2
+      }
+      if (side < 0) {
+        // Mengtian's exposed payload platform: rails and experiment boxes on the outer face.
+        const plat = new Group()
+        plat.position.set(0, -2.2, 6.5)
+        lab.add(plat)
+        this.mesh(new BoxGeometry(2.6, 0.12, 7), m.metal, plat)
+        for (let k = 0; k < 6; k++) this.mesh(new BoxGeometry(0.9, 0.6 + (k % 3) * 0.2, 1), k % 2 ? m.goldFoil : m.whitePaint, plat, (k % 2 ? 0.6 : -0.6), -0.4, -2.8 + k * 1.1)
+      } else {
+        // Wentian's airlock hatch and its small robotic arm.
+        this.ring(lab, 0.5, 0.06, 0, m.brushed).position.set(0, 2.1, 9.4)
+        this.rod(lab, new Vector3(1.4, 1.7, 3.5), new Vector3(1.4, 1.7, 8.5), 0.08, m.whitePaint)
+      }
+      // Two large wings on a gimbal at the end of the resource cabin, along ±z of the station (x of the lab).
+      const gimbal = new Group()
+      gimbal.position.set(0, 0, 15.2)
+      lab.add(gimbal)
+      this.mesh(new CylinderGeometry(0.35, 0.35, 4.2, 24), m.brushed, gimbal).rotation.z = Math.PI / 2
+      for (const dir of [1, -1]) {
+        const wing = this.flexWing(gimbal, 26, 2.2, 26)
+        wing.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
+        wing.position.x = dir * 2.1
+        // Blanket faces turned towards the light.
+        wing.rotation.z = 0.5
+      }
+    }
+
+    // Shenzhou at the nadir port: orbital module, descent capsule, service module with two wings.
+    const sz = new Group()
+    sz.position.set(0, -1.4, 0)
+    sz.rotation.x = Math.PI / 2
+    g.add(sz)
+    this.dockingPort(sz, new Group())
+    this.turned(sz, [[0.5, 0.6], [1.05, 0.9], [1.12, 1.6], [1.12, 2.8], [0.9, 3.3], [0.7, 3.4]], m.whitePaint, 48)
+    this.turned(sz, [[0.7, 3.4], [1.0, 3.6], [1.25, 4.6], [1.25, 5.4]], m.darkStructure, 48)
+    this.turned(sz, [[1.25, 5.4], [1.4, 5.5], [1.4, 8.3], [1.0, 8.6], [0, 8.65]], m.whiteBlanket, 48)
+    for (const s2 of [1, -1]) {
+      const w = this.rigidWing(sz, 4, 2.0, 1.55)
+      w.position.set(s2 * 1.45, 0, 7)
+      w.rotation.z = s2 > 0 ? -Math.PI / 2 : Math.PI / 2
+    }
+    // Tianzhou at the aft port: pressurised cargo section and propulsion module with two wings.
+    const tz = new Group()
+    tz.position.set(0, 0, -16.5)
+    tz.rotation.y = Math.PI
+    g.add(tz)
+    this.dockingPort(tz, new Group())
+    this.turned(tz, [[0.7, 0.4], [1.4, 0.9], [1.68, 1.4], [1.68, 6.4], [1.45, 6.7], [1.45, 10.2], [1.0, 10.6], [0, 10.65]], m.whiteBlanket, 64)
+    for (const s2 of [1, -1]) {
+      const w = this.rigidWing(tz, 3, 2.4, 1.9)
+      w.position.set(s2 * 1.5, 0, 8.5)
+      w.rotation.z = s2 > 0 ? -Math.PI / 2 : Math.PI / 2
+    }
   }
 
-  /** Sputnik 1: a polished 58 cm sphere with four swept-back whip antennas (2.4 and 2.9 m). */
+  /**
+   * Sputnik 1: a 58 cm polished aluminium sphere made of two hemispheres joined by a bolted flange, four
+   * spring-hinged antenna mounts and the 2.4 m and 2.9 m whips, plus the pressurisation valve.
+   */
   private buildSputnik(g: Group): void {
     const m = this.mats
-    this.mesh(new SphereGeometry(0.29, 64, 48), m.polished, g)
-    const seam = this.mesh(new CylinderGeometry(0.292, 0.292, 0.012, 64), m.metal, g)
-    seam.rotation.x = Math.PI / 2
-    const roots: [number, number, number][] = [[0.12, 0.12, 0.23], [-0.12, 0.12, 0.23], [0.12, -0.12, 0.23], [-0.12, -0.12, 0.23]]
-    roots.forEach(([x, y, z], i) => {
+    const R = 0.29
+    this.mesh(new SphereGeometry(R, 128, 96, 0, Math.PI * 2, 0, Math.PI / 2 - 0.01), m.brushed, g).rotation.x = Math.PI / 2
+    this.mesh(new SphereGeometry(R * 0.998, 128, 96, 0, Math.PI * 2, Math.PI / 2 + 0.01, Math.PI / 2), m.brushed, g).rotation.x = Math.PI / 2
+    this.ring(g, R + 0.002, 0.007, 0, m.brushed)
+    this.boltCircle(g, R + 0.006, 0.006, 36, 0.0045, m.metal)
+    this.boltCircle(g, R + 0.006, -0.006, 36, 0.0045, m.metal)
+    // Pressurisation valve on the front pole.
+    this.mesh(new CylinderGeometry(0.012, 0.016, 0.03, 16), m.brushed, g, 0, 0, R + 0.01).rotation.x = Math.PI / 2
+    const roots: [number, number][] = [[1, 1], [-1, 1], [1, -1], [-1, -1]]
+    roots.forEach(([sx, sy], i) => {
       const length = i < 2 ? 2.4 : 2.9
-      const a = new Vector3(x, y, z)
-      // Swept back at ~35° from the axis, splayed outwards.
-      const dir = new Vector3(Math.sign(x) * 0.42, Math.sign(y) * 0.42, -1).normalize()
-      this.rod(g, a, a.clone().addScaledVector(dir, length), 0.006, m.polished)
+      // Mounts on the forward hemisphere, about 40° off the axis.
+      const n = new Vector3(sx * 0.45, sy * 0.45, 0.77).normalize()
+      const base = n.clone().multiplyScalar(R)
+      const mount = this.mesh(new CylinderGeometry(0.014, 0.018, 0.05, 16), m.brushed, g)
+      mount.position.copy(base).addScaledVector(n, 0.02)
+      mount.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), n)
+      const hinge = this.mesh(new SphereGeometry(0.013, 16, 12), m.metal, g)
+      hinge.position.copy(base).addScaledVector(n, 0.045)
+      // Whips swept back at ~35° from the axis, splayed outwards.
+      const dir = new Vector3(sx * 0.42, sy * 0.42, -1).normalize()
+      const start = hinge.position.clone()
+      this.rod(g, start, start.clone().addScaledVector(dir, length), 0.006, m.brushed, 0.0035)
+      // Spring sleeve at the root of each whip.
+      this.rod(g, start, start.clone().addScaledVector(dir, 0.12), 0.011, m.metal)
     })
   }
 }
 
-/** Parabolic dish facing +y, from a lathe profile. */
-function dishGeometry(radius: number, depth: number): LatheGeometry {
-  const pts: Vector2[] = []
-  for (let i = 0; i <= 24; i++) {
-    const r = (i / 24) * radius
-    pts.push(new Vector2(r, (r * r) / (radius * radius) * depth))
+let earthTexture: Texture | null = null
+let earthUsers = 0
+const earthWaiting = new Set<() => void>()
+
+/**
+ * The Earth map (2048 × 1024) shared by every low-orbit craft on screen: four catalogue thumbnails used to
+ * download, decode and upload it four times. Redraw callbacks run once it has arrived.
+ */
+function acquireEarthTexture(invalidate: () => void): Texture {
+  earthUsers++
+  if (!earthTexture) {
+    earthTexture = new TextureLoader().load(EARTH_TEXTURE, () => {
+      earthWaiting.forEach((f) => f())
+      earthWaiting.clear()
+    })
+    earthTexture.colorSpace = SRGBColorSpace
+    earthTexture.anisotropy = 8
   }
-  return new LatheGeometry(pts, 64)
+  if (!earthTexture.image) earthWaiting.add(invalidate)
+  return earthTexture
+}
+
+function releaseEarthTexture(): void {
+  earthUsers = Math.max(0, earthUsers - 1)
+  if (earthUsers > 0 || !earthTexture) return
+  earthTexture.dispose()
+  earthTexture = null
+  earthWaiting.clear()
 }
 
 /**
- * Scales a model so its bounding sphere has the given radius, and centres it on that sphere, or on one of its
- * parts when given (so long booms do not push the main body to the edge of the frame).
+ * Scales a model so its bounding sphere has the given radius, centred on the vertex centroid: thin booms barely
+ * move the centroid, so the main body stays in the middle of the frame while the booms run off its edges.
+ * Call before adding the model to a parent: positions are measured in its parent's frame.
  */
-function normalize(g: Group, radius: number, centreOn: Object3D | null): void {
+function fit(g: Object3D, radius: number): void {
   g.updateMatrixWorld(true)
   const sphere = new Box3().setFromObject(g).getBoundingSphere(new Sphere())
-  const centre = centreOn ? new Box3().setFromObject(centreOn).getCenter(new Vector3()) : sphere.center
+  const centroid = new Vector3()
+  let n = 0
+  const v = new Vector3()
+  g.traverse((o) => {
+    const mesh = o as Mesh
+    if (!mesh.isMesh || (mesh as InstancedMesh).isInstancedMesh) return
+    const pos = mesh.geometry.getAttribute('position')
+    if (!pos) return
+    // Sample at most ~2k vertices per mesh: enough for a centroid, cheap on multi-million-vertex models.
+    const step = Math.max(1, Math.floor(pos.count / 2000))
+    for (let i = 0; i < pos.count; i += step) {
+      centroid.add(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld))
+      n++
+    }
+  })
+  const centre = n ? centroid.divideScalar(n) : sphere.center
   const k = radius / sphere.radius
-  g.scale.setScalar(k)
-  g.position.copy(centre).multiplyScalar(-k)
+  // Scaling about the root's own origin moves every point p to origin + k (p − origin); then shift the
+  // centroid to zero. Works whatever position, rotation and scale the model file gave its root.
+  g.scale.multiplyScalar(k)
+  g.position.sub(centre).multiplyScalar(k)
 }

@@ -11,7 +11,9 @@
     "label": "Navigation principale",
     "observatory": "Observatoire",
     "systems": "Systèmes solaires",
-    "objects": "Objets"
+    "objects": "Objets",
+    "create": "Création",
+    "constellations": "Constellations"
   },
   "space": {
     "unsupported": "WebGL 2 n'est pas disponible sur ce navigateur : la vue 3D ne peut pas s'afficher.",
@@ -181,7 +183,13 @@
     "fontsNote": "Instrument Serif, Geist et Geist Mono, via Google Fonts (SIL Open Font License).",
     "code": "Tout le reste (planètes procédurales, atmosphères, anneaux, étoiles, ciel, objets du catalogue) est généré par code.",
     "objects": "Objets de l'espace",
-    "objectsNote": "Les données de chaque objet viennent des pages citées sur sa fiche (Wikipédia en anglais, qui renvoie aux publications d'origine). Les modèles 3D, nébuleuses, galaxies et simulations de trous noirs sont générés par code ; seules Pluton et Cérès utilisent une carte réelle."
+    "objectsNote": "Les données de chaque objet viennent des pages citées sur sa fiche (Wikipédia en anglais, qui renvoie aux publications d'origine). Les nébuleuses, galaxies et simulations de trous noirs sont générées par code ; seules Pluton et Cérès utilisent une carte réelle.",
+    "models": "Modèles 3D",
+    "modelsNote": "Station spatiale internationale, Hubble, James Webb et Voyager 1 : modèles de NASA 3D Resources (libres de droits), compressés pour le web. Tiangong et Spoutnik 1 sont modélisés par code.",
+    "cometModelNote": "Noyau de la comète 67P/Tchourioumov-Guérassimenko : modèle de forme NAVCAM de novembre 2015, compressé pour le web et redistribué sous la même licence.",
+    "cometModelCredit": "ESA/Rosetta/NAVCAM — CC BY-SA 3.0 IGO",
+    "starsData": "Étoiles et constellations",
+    "starsNote": "Positions, distances, magnitudes et spectres : base HYG v4.1 (astronexus, CC BY-SA 4.0), compilée à partir des catalogues Hipparcos, Gaia, Yale et Gliese ; les fichiers d'étoiles du site en sont dérivés et suivent la même licence. Tracés des figures : d3-celestial d'Olaf Frohn (licence BSD à 3 clauses)."
   },
   "footer": {
     "credits": "Crédits"
@@ -204,14 +212,23 @@
     },
     "appearance": {
       "texture": "Carte réelle de la surface (NASA / USGS, domaine public).",
-      "model": "Modèle 3D simplifié aux proportions réelles.",
+      "model": "Modèle 3D construit aux dimensions réelles, textures générées.",
       "simulation": "Simulation : trajets de la lumière et effets calculés, couleurs et échelles illustratives.",
-      "impression": "Vue d'artiste : forme et couleurs inspirées des images réelles, structure procédurale."
+      "impression": "Vue d'artiste : forme et couleurs inspirées des images réelles, structure procédurale.",
+      "nasaModel": "Modèle 3D officiel de la NASA (NASA 3D Resources, domaine public).",
+      "shapeModel": "Forme réelle du noyau : modèle 3D de l'ESA calculé à partir des images de Rosetta. Coma et queues : vue d'artiste.",
+      "computedColour": "Couleur calculée par l'étude citée à partir du spectre de l'étoile ; surface : vue d'artiste.",
+      "textureFilled": "Carte réelle de New Horizons (NASA, domaine public). L'hémisphère sud, dans la nuit polaire lors du survol de 2015, n'a jamais été photographié : il est reconstitué à partir du relief connu.",
+      "measuredShape": "Noyau construit d'après ses dimensions mesurées par Vega et Giotto en 1986 ; relief de détail, coma et queues : vue d'artiste."
     },
     "categories": {
       "black-holes": {
         "name": "Trous noirs",
         "blurb": "Des régions où la gravité retient même la lumière. On ne les voit qu'à travers ce qui les entoure : la matière qui y tombe et chauffe, et la lumière du fond du ciel qu'ils déforment."
+      },
+      "stars": {
+        "name": "Étoiles",
+        "blurb": "Des étoiles dont l'apparence surprend. Une naine blanche n'est pas forcément blanche : quand son atmosphère très dense contient des débris de planètes ou du carbone, elle peut paraître verte, rose ou bleue."
       },
       "neutron-stars": {
         "name": "Étoiles à neutrons",
@@ -250,11 +267,13 @@
       "antenna": "Antenne",
       "aphelion": "Aphélie",
       "approach": "Vitesse d'approche",
+      "atmosphere": "Atmosphère",
       "blackHoleMass": "Masse du trou noir",
       "centralStar": "Étoile centrale",
       "closestEarth": "Au plus près de la Terre",
       "collectingArea": "Surface collectrice",
       "companion": "Compagnon",
+      "colour": "Couleur à l'œil",
       "constellation": "Constellation",
       "crew": "Équipage",
       "dawn": "Sonde Dawn",
@@ -265,6 +284,7 @@
       "distance": "Distance",
       "distanceEarth": "Distance à la Terre",
       "eccentricity": "Excentricité",
+      "envelope": "Enveloppe de gaz",
       "excessSpeed": "Vitesse à l'infini",
       "expansion": "Vitesse d'expansion",
       "firstImage": "Première image",
@@ -319,10 +339,26 @@
       "stars": "Étoiles",
       "sunDistance": "Distance du Soleil au centre",
       "sunshield": "Pare-soleil",
+      "study": "Étude",
       "supernova": "Supernova",
+      "surfaceTemperature": "Température de surface",
       "type": "Type",
       "universeAge": "Âge de l'Univers à l'époque",
-      "wavelengths": "Longueurs d'onde"
+      "wavelengths": "Longueurs d'onde",
+      "isco": "Dernière orbite stable",
+      "diskPeakTemperature": "Température max. du disque",
+      "hawkingTemperature": "Température de Hawking",
+      "evaporation": "Évaporation (Hawking)",
+      "equatorSpeed": "Vitesse à l'équateur",
+      "spinDownPower": "Puissance de freinage",
+      "characteristicAge": "Âge caractéristique",
+      "dominantLine": "Raie dominante",
+      "composition": "Composition (émission)",
+      "spectralType": "Type spectral",
+      "lifetime": "Durée de vie",
+      "designation": "Désignation",
+      "lightLeft": "Lumière partie",
+      "absoluteMagnitude": "Magnitude absolue"
     },
     "units": {
       "msun": "{v} M☉",
@@ -353,7 +389,140 @@
       "gyr": "{v} milliards d'années",
       "joule": "{v} J",
       "m2": "{v} m²",
-      "w": "{v} W"
+      "w": "{v} W",
+      "hz": "{v} Hz",
+      "rsun": "{v} R☉",
+      "pct": "{v} %"
     }
+  },
+  "creator": {
+    "eyebrow": "Bac à sable",
+    "title": "Création",
+    "description": "Choisissez un type d'objet et réglez sa physique : il se reconstruit en direct, avec ses grandeurs calculées. Le lien de la page garde vos réglages.",
+    "type": "Type d'objet",
+    "types": {
+      "black-hole": "Trou noir",
+      "pulsar": "Pulsar",
+      "nebula": "Nébuleuse",
+      "star": "Étoile"
+    },
+    "intro": {
+      "black-hole": "Plus un trou noir est léger, plus son disque est chaud : celui d'un trou noir stellaire brille en rayons X, celui d'un géant reste orangé. La rotation rapproche le bord intérieur du disque et alimente les jets.",
+      "pulsar": "La période règle la vitesse de rotation et le champ magnétique le freinage : un pulsar rapide et très magnétisé perd son énergie vite et reste jeune. Au-delà de 10¹⁴ gauss, c'est un magnétar.",
+      "nebula": "La couleur d'une nébuleuse vient des raies d'émission de ses éléments : l'hydrogène rougit, l'oxygène ionisé vire au turquoise, le soufre au rouge sombre. Les pourcentages sont relatifs.",
+      "star": "La masse fixe tout sur la séquence principale : température, taille, éclat, durée de vie. Une rotation rapide renforce l'activité magnétique et couvre l'étoile de taches. Les naines blanches peuvent prendre la couleur des éléments de leur atmosphère."
+    },
+    "params": {
+      "black-hole": {
+        "mass": "Masse",
+        "accretion": "Accrétion (part de la limite d'Eddington)",
+        "spin": "Rotation (paramètre de spin)",
+        "diskSize": "Taille du disque",
+        "jets": "Jets relativistes",
+        "jetColor": "Couleur des jets"
+      },
+      "pulsar": {
+        "period": "Période de rotation",
+        "field": "Champ magnétique",
+        "inclination": "Angle de l'axe magnétique",
+        "beamColor": "Couleur des faisceaux",
+        "windNebula": "Nébuleuse de vent",
+        "nebulaColor": "Couleur de la nébuleuse"
+      },
+      "nebula": {
+        "shape": "Forme",
+        "hydrogen": "Hydrogène",
+        "oxygen": "Oxygène",
+        "sulfur": "Soufre",
+        "nitrogen": "Azote",
+        "helium": "Hélium",
+        "variant": "Variante"
+      },
+      "star": {
+        "stage": "Stade d'évolution",
+        "mass": "Masse",
+        "wdTemperature": "Température de surface",
+        "pollutant": "Élément dans l'atmosphère",
+        "pollution": "Part de cet élément",
+        "rotation": "Période de rotation"
+      }
+    },
+    "units": {
+      "black-hole": {
+        "mass": "{v} M☉",
+        "accretion": "{v} %",
+        "spin": "{v}",
+        "diskSize": "{v} Rs"
+      },
+      "pulsar": {
+        "period": "{v} s",
+        "field": "{v} G",
+        "inclination": "{v}°"
+      },
+      "nebula": {
+        "hydrogen": "{v} %",
+        "oxygen": "{v} %",
+        "sulfur": "{v} %",
+        "nitrogen": "{v} %",
+        "helium": "{v} %",
+        "variant": "n° {v}"
+      },
+      "star": {
+        "mass": "{v} M☉",
+        "wdTemperature": "{v} K",
+        "pollution": "{v} %",
+        "rotation": "{v} jours"
+      }
+    },
+    "options": {
+      "shape": {
+        "emission": "Nuage d'émission (type Orion)",
+        "ring": "Nébuleuse planétaire en anneau",
+        "helix": "Nébuleuse planétaire (type Hélice)",
+        "remnant": "Reste de supernova",
+        "pillars": "Piliers de poussière",
+        "complex": "Grand complexe (type Carène)"
+      },
+      "stage": {
+        "main-sequence": "Séquence principale",
+        "red-giant": "Géante rouge",
+        "white-dwarf": "Naine blanche"
+      },
+      "pollutant": {
+        "none": "Aucun (hélium ou hydrogène pur)",
+        "sodium": "Sodium (débris planétaires) · vert",
+        "carbon": "Carbone · rose",
+        "calcium": "Calcium (débris) · jaune",
+        "hydrogenHelium": "Hydrogène et hélium mêlés · cyan"
+      }
+    },
+    "share": "Copier le lien",
+    "copied": "Lien copié",
+    "reset": "Valeurs par défaut",
+    "results": "Grandeurs calculées",
+    "note": "Relations simplifiées de manuel (disque de Shakura–Sunyaev, freinage dipolaire, relations masse–luminosité) : des ordres de grandeur, pas des modèles d'observatoire. Couleurs du disque et des raies ramenées au visible."
+  },
+  "constellations": {
+    "eyebrow": "Le ciel",
+    "title": "Constellations",
+    "description": "Les 88 constellations officielles. Vues de la Terre, leurs étoiles dessinent une figure ; dans l'espace, elles sont souvent sans rapport les unes avec les autres, à des distances très différentes.",
+    "pageDescription": "La constellation {name} vue de la Terre puis en 3D, avec la distance réelle de chacune de ses étoiles.",
+    "search": "Chercher une constellation",
+    "count": "{n} constellations",
+    "range": "{near} à {far} a.l.",
+    "notFound": "Cette constellation n'existe pas.",
+    "intro": "La figure relie {n} étoiles.",
+    "depth": "Elles semblent voisines, mais la plus proche est à {near} années-lumière et la plus lointaine à {far} : la figure n'existe que vue d'ici.",
+    "viewLabel": "Point de vue",
+    "viewSky": "Vue depuis la Terre",
+    "view3d": "Vue en 3D",
+    "skyNote": "Le point de vue de la Terre : la taille des points suit l'éclat apparent des étoiles.",
+    "depthNote": "Chaque étoile est à sa vraie distance. Les traits bleus partent de la Terre (le point bleu) : c'est en regardant le long d'eux que la figure se reforme.",
+    "skyHint": "Cliquer sur une étoile pour sa fiche",
+    "clickHint": "Cliquez sur une étoile, dans le ciel ou dans la liste, pour voir sa fiche.",
+    "stars": "Étoiles",
+    "outsideFigure": "hors figure",
+    "tooltip": "{name} · {d} a.l.",
+    "dataNote": "Distances tirées des parallaxes Hipparcos et Gaia (base HYG) : au-delà de quelques centaines d'années-lumière, l'incertitude peut dépasser 20 %."
   }
 }

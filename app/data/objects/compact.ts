@@ -102,6 +102,31 @@ export const BLACK_HOLES: SpaceObject[] = [
     appearance: 'simulation',
     sources: [wikipedia('Cygnus X-1', 'Cygnus_X-1')],
   },
+  {
+    id: 'mom-bh-1', category: 'black-holes', name: 'MoM-BH*-1',
+    kind: { fr: 'Étoile trou noir · aube cosmique', en: 'Black hole star · cosmic dawn' },
+    description: {
+      fr: "Un « petit point rouge » repéré par le télescope James Webb, vu 660 millions d'années après le Big Bang. Il brille comme une étoile grande comme le Système solaire, mais émet bien plus d'énergie que la fusion nucléaire ne le permet : les astronomes y voient un trou noir en pleine croissance, enfoui dans une enveloppe d'hydrogène très dense. C'est le premier exemple d'un nouveau type d'objet, l'étoile trou noir.",
+      en: 'A "little red dot" spotted by the James Webb telescope, seen 660 million years after the Big Bang. It shines like a star the size of the Solar System, yet gives off far more energy than nuclear fusion allows: astronomers read it as a fast-growing black hole buried in a very dense envelope of hydrogen. It is the first example of a new kind of object, the black hole star.',
+    },
+    facts: [
+      { key: 'blackHoleMass', value: 1e5, unit: 'msun', qualifier: '≈', note: { fr: 'jusqu\'à ~10 millions selon les modèles', en: 'up to ~10 million depending on the model' } },
+      { key: 'envelope', text: { fr: '10 à 100 UA d\'hydrogène dense (≈ 40 UA dans le modèle de référence)', en: '10 to 100 AU of dense hydrogen (≈ 40 AU in the reference model)' } },
+      { key: 'redshift', value: 7.76, digits: 2, qualifier: '≈' },
+      { key: 'universeAge', text: { fr: '660 millions d\'années', en: '660 million years' } },
+      { key: 'luminosity', text: { fr: '~100 milliards de fois une étoile', en: '~100 billion times a star' } },
+      { key: 'discovery', text: { fr: 'JWST, relevé Mirage or Miracle · Nature, 12 août 2026', en: 'JWST, Mirage or Miracle survey · Nature, 12 August 2026' } },
+    ],
+    render: {
+      kind: 'star', temperatureK: 3800, tint: '#d8452c', granulation: 0.55, spots: 0, glow: 0.45, rotationS: 3e6,
+      envelope: { lumpiness: 0.1, haze: '#ff4a2c' }, seed: 74,
+    },
+    appearance: 'impression',
+    sources: [
+      { label: 'MIT News — A black hole star (2026)', url: 'https://news.mit.edu/2026/astronomers-discover-brand-new-type-astrophysical-object-black-hole-star-0812' },
+      { label: 'Sci.News — Black hole star in early universe (2026)', url: 'https://www.sci.news/astronomy/black-hole-star-early-universe-14989.html' },
+    ],
+  },
 ]
 
 export const NEUTRON_STARS: SpaceObject[] = [

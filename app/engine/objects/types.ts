@@ -1,10 +1,12 @@
-import type { Object3D, PerspectiveCamera, Texture, Vector3 } from 'three'
+import type { Object3D, PerspectiveCamera, Texture, Vector3, WebGLRenderer } from 'three'
 import type { CubeBaker } from '../bake/CubeBaker'
 import type { QualityProfile } from '../core/quality'
 
 /** What a body needs from the stage that shows it. */
 export interface BodyContext {
   baker: CubeBaker
+  /** For one-off offscreen work only (volume bakes); restore any renderer state you change. */
+  renderer: WebGLRenderer
   quality: QualityProfile
   /** Catalogue thumbnail: fewer particles, fewer ray-march steps, no high-resolution bake. */
   preview: boolean

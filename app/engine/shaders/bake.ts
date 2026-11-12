@@ -103,12 +103,12 @@ float hIce(vec3 p, out float extra){
   // Double ridges flanking a central trough: the signature of Europa-like lineae.
   // Line widths never go below ~1.5 texels, otherwise the lineae break up into dotted aliasing.
   float tw = 1.5 * 1.57 / (uMaxFreq / 0.22);
-  float r1 = exp(-pow((e1 - 0.035) / max(0.02, tw * 2.2), 2.0)) - 0.6 * exp(-pow(e1 / max(0.012, tw * 2.2), 2.0));
-  float r2 = exp(-pow((e2 - 0.03) / max(0.018, tw * 5.5), 2.0)) - 0.5 * exp(-pow(e2 / max(0.01, tw * 5.5), 2.0));
-  float r3 = exp(-pow(e3 / max(0.03, tw * 13.0), 2.0)) * (1.0 - smoothstep(0.25, 0.6, 13.0 / uMaxFreq));
+  float r1 = exp(-sq((e1 - 0.035) / max(0.02, tw * 2.2))) - 0.6 * exp(-sq(e1 / max(0.012, tw * 2.2)));
+  float r2 = exp(-sq((e2 - 0.03) / max(0.018, tw * 5.5))) - 0.5 * exp(-sq(e2 / max(0.01, tw * 5.5)));
+  float r3 = exp(-sq(e3 / max(0.03, tw * 13.0))) * (1.0 - smoothstep(0.25, 0.6, 13.0 / uMaxFreq));
   float chaos = smoothstep(0.22, 0.55, fbm(p * 3.0 + uSeed + 9.0, 5));
   float h = base + r1 * 0.03 + r2 * 0.016 + r3 * 0.005 + chaos * fbm(p * 26.0 + uSeed, OC(26.0, 5)) * 0.028;
-  extra = clamp(max(max(exp(-pow(e1 / 0.06, 2.0)), exp(-pow(e2 / 0.045, 2.0)) * 0.7), exp(-pow(e3 / 0.04, 2.0)) * 0.35) + chaos * 0.45, 0.0, 1.0);
+  extra = clamp(max(max(exp(-sq(e1 / 0.06)), exp(-sq(e2 / 0.045)) * 0.7), exp(-sq(e3 / 0.04)) * 0.35) + chaos * 0.45, 0.0, 1.0);
   return h;
 }
 

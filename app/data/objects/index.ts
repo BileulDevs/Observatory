@@ -2,10 +2,12 @@ import { OBJECT_CATEGORIES, type ObjectCategory, type SpaceObject } from '~/type
 import { BLACK_HOLES, NEUTRON_STARS, QUASARS } from './compact'
 import { GALAXIES, NEBULAE } from './deepSky'
 import { COMETS, DWARF_PLANETS, SPACECRAFT } from './solarSystem'
+import { STARS } from './stars'
 
 /** Every catalogued object, grouped by category in display order. */
 export const OBJECTS_BY_CATEGORY: Record<ObjectCategory, SpaceObject[]> = {
   'black-holes': BLACK_HOLES,
+  'stars': STARS,
   'neutron-stars': NEUTRON_STARS,
   'quasars': QUASARS,
   'galaxies': GALAXIES,

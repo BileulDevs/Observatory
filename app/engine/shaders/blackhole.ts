@@ -159,7 +159,7 @@ void main(){
   // ConeGeometry's uv.y is 1 at the apex (the hole) and 0 at the open end.
   float along = 1.0 - vUv.y;
   float knots = fbm(vec3(vUv.x * 6.0, along * 10.0 - uTime * 0.9, 3.0), 4) * 0.5 + 0.5;
-  float fade = smoothstep(0.0, 0.05, along) * pow(1.0 - along, 1.6);
+  float fade = smoothstep(0.0, 0.05, along) * pow(max(1.0 - along, 0.0), 1.6);
   vec3 col = uColor * uI * core * fade * (0.35 + 1.4 * knots * knots);
   gl_FragColor = vec4(col, 1.0);
 }

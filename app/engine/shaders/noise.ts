@@ -3,6 +3,12 @@
  * Included by both the bake shaders and the runtime surface shader, which must agree on tangentU().
  */
 export const GLSL_NOISE = /* glsl */`
+#ifndef SQ_DEFINED
+#define SQ_DEFINED
+// x², for squares whose base can be negative: GLSL leaves pow(x, y) undefined for x < 0 and some GPUs
+// (Direct3D through ANGLE) return NaN, which the bloom then spreads into black blocks.
+float sq(float x){ return x * x; }
+#endif
 vec3 mod289(vec3 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec4 mod289(vec4 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec4 permute(vec4 x){ return mod289(((x * 34.0) + 1.0) * x); }

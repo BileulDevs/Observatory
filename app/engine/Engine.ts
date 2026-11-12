@@ -11,7 +11,7 @@ import { StagePass } from './core/StagePass'
 import { detectQuality, type QualityProfile } from './core/quality'
 import { disposeTextures } from './core/textures'
 import { STYLE_PARAMS } from './presets'
-import { FINISH_SHADER } from './shaders/finish'
+import { FINISH_SHADER, SANITIZE_SHADER } from './shaders/finish'
 import type { Stage, StageContext, ViewShift } from './stages/Stage'
 
 export type { ViewShift } from './stages/Stage'
@@ -96,6 +96,8 @@ export class Engine {
     this.composer = new EffectComposer(this.renderer, target)
     this.mainPass = new StagePass(this.scene, this.camera)
     this.composer.addPass(this.mainPass)
+    // One cheap full-screen pass: keeps any invalid pixel from being smeared by the bloom (see SANITIZE_SHADER).
+    this.composer.addPass(new ShaderPass(SANITIZE_SHADER))
     this.bloom = new UnrealBloomPass(new Vector2(1, 1), STYLE_PARAMS.natural.bloom, BLOOM_RADIUS, BLOOM_THRESHOLD)
     this.composer.addPass(this.bloom)
     this.composer.addPass(new OutputPass())
@@ -113,6 +115,7 @@ export class Engine {
       camera: this.camera,
       canvas,
       baker: this.baker,
+      renderer: this.renderer,
       sky: this.backdrop.skyTexture,
       quality: this.quality,
       get reducedMotion() { return engine.reducedMotion },
