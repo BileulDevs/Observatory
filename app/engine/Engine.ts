@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping, HalfFloatType, PerspectiveCamera, Scene, Vector2, WebGLRenderer, WebGLRenderTarget,
+  ACESFilmicToneMapping, HalfFloatType, PCFSoftShadowMap, PerspectiveCamera, Scene, Vector2, WebGLRenderer, WebGLRenderTarget,
   type Material,
 } from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -97,6 +97,9 @@ export class Engine {
    * block the page for seconds. Null when nothing is pending.
    */
   private warming: { pending: Set<Material>; total: number } | null = null
+  private resizeObserver: ResizeObserver | null = null
+  /** Last applied canvas size, CSS pixels: observers also fire for changes that leave it as it was. */
+  private size = { w: 0, h: 0, pr: 0 }
   /** Callbacks to run once the next frame has actually been drawn. */
   private afterFrame: (() => void)[] = []
 
@@ -118,6 +121,10 @@ export class Engine {
     this.renderer = new WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' })
     this.renderer.toneMapping = ACESFilmicToneMapping
     this.renderer.setClearColor(0x000000, 1)
+    // Shadow maps cost nothing until a stage adds a light with castShadow (only the exploit scenes do): three
+    // skips the shadow pass and keeps the same shader programs when no light casts.
+    this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.type = PCFSoftShadowMap
     this.quality = detectQuality(this.renderer.getContext() as WebGL2RenderingContext)
     this.events.onBoot?.('gpu')
 
@@ -146,6 +153,7 @@ export class Engine {
       canvas,
       baker: this.baker,
       renderer: this.renderer,
+      get drawTarget() { return engine.composer.readBuffer },
       sky: this.backdrop.skyTexture,
       quality: this.quality,
       get reducedMotion() { return engine.reducedMotion },
@@ -159,6 +167,13 @@ export class Engine {
     }
 
     canvas.addEventListener('webglcontextlost', this.onContextLost)
+    // The canvas itself, not the window: also catches size changes without a window resize (mobile address bar,
+    // scrollbars). Observers run after layout and before paint, so the redraw below lands in the same frame.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(this.onResize)
+      this.resizeObserver.observe(canvas)
+    }
+    // Also the window: a device-pixel-ratio change (browser zoom, another monitor) does not resize the canvas box.
     window.addEventListener('resize', this.onResize)
     this.resize()
     this.warmUp()
@@ -261,6 +276,7 @@ export class Engine {
     this.disposed = true
     this.stop()
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost)
+    this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.onResize)
     this.stage?.dispose()
     this.stage = null
@@ -275,17 +291,20 @@ export class Engine {
   private applyLookToPost(): void {
     const subject = this.stage?.subject
     const look = subject?.currentLook
+    // Only stages without a planet subject use their own levels: a subject's look already covers them.
+    const post = subject ? undefined : this.stage?.post
     const natural = STYLE_PARAMS.natural
-    this.bloom.strength = look?.bloom ?? natural.bloom
+    this.bloom.strength = look?.bloom ?? post?.bloom ?? natural.bloom
     this.finish.uniforms.uGrain!.value = look?.grain ?? natural.grain
-    this.backdrop.setIntensity(look?.sky ?? natural.sky, look?.stars ?? natural.stars)
-    this.renderer.toneMappingExposure = subject?.exposure ?? natural.exposure
+    this.backdrop.setIntensity(look?.sky ?? post?.sky ?? natural.sky, look?.stars ?? post?.stars ?? natural.stars)
+    this.renderer.toneMappingExposure = subject?.exposure ?? post?.exposure ?? natural.exposure
   }
 
   private resize(): void {
     const w = this.canvas.clientWidth || window.innerWidth
     const h = this.canvas.clientHeight || window.innerHeight
     const pr = Math.min(window.devicePixelRatio, this.quality.maxPixelRatio)
+    this.size = { w, h, pr }
     this.renderer.setPixelRatio(pr)
     this.renderer.setSize(w, h, false)
     this.composer.setPixelRatio(pr)
@@ -330,7 +349,8 @@ export class Engine {
   private readonly frame = (now: number): void => {
     this.raf = 0
     if (this.disposed || !this.active) return
-    const dt = Math.min((now - this.last) / 1000, MAX_DT)
+    // Clamped at 0 too: a frame drawn from a resize can start before the last animation-frame timestamp.
+    const dt = Math.max(0, Math.min((now - this.last) / 1000, MAX_DT))
     this.last = now
     this.inFrame = true
 
@@ -377,9 +397,24 @@ export class Engine {
     if (result.animating || this.baker.busy || this.dirty) this.raf = requestAnimationFrame(this.frame)
   }
 
+  /**
+   * Resizing the drawing buffer clears it. Drawing only at the next animation frame left one frame where the
+   * browser showed the cleared or stretched old image, and HTML markers lagged a frame behind the scene: during a
+   * window drag, a visible offset. So the frame is drawn right here, in the same task as the resize.
+   */
   private readonly onResize = (): void => {
+    const w = this.canvas.clientWidth || window.innerWidth
+    const h = this.canvas.clientHeight || window.innerHeight
+    const pr = Math.min(window.devicePixelRatio, this.quality.maxPixelRatio)
+    if (w === this.size.w && h === this.size.h && pr === this.size.pr) return
     this.resize()
-    this.wake()
+    this.stage?.resized?.()
+    this.dirty = true
+    if (!this.active || this.disposed || this.inFrame) return
+    // Replace the pending frame instead of adding one: two queued frame callbacks would run two loops.
+    if (this.raf) cancelAnimationFrame(this.raf)
+    this.raf = 0
+    this.frame(performance.now())
   }
 
   private readonly onContextLost = (e: Event): void => {

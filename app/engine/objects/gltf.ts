@@ -1,4 +1,4 @@
-import { PerspectiveCamera, type Material, type Mesh, type Object3D, type Scene, type Texture, type WebGLRenderer } from 'three'
+import { PerspectiveCamera, type Material, type Mesh, type Object3D, type Scene, type Texture, type WebGLRenderer, type WebGLRenderTarget } from 'three'
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 
@@ -46,9 +46,19 @@ export function sceneOf(object: Object3D): Object3D {
  * main thread for a long frame per material; compileAsync lets the driver compile in parallel
  * (KHR_parallel_shader_compile) and resolves when ready.
  */
-export async function prepareForScene(renderer: WebGLRenderer, object: Object3D, scene: Object3D): Promise<void> {
+export async function prepareForScene(
+  renderer: WebGLRenderer, object: Object3D, scene: Object3D, target: WebGLRenderTarget | null,
+): Promise<void> {
+  // Compile for the buffer frames are drawn into: three keys programs on the current target's tone mapping and
+  // colour space, so compiling for the screen would leave the real programs to be built at the first draw.
+  // compileAsync runs its compile() synchronously before its first await, so the target only needs to be set
+  // around the call itself.
+  const previous = renderer.getRenderTarget()
+  renderer.setRenderTarget(target)
   // The camera only matters for its layers (which lights count); every camera here uses the default layer.
-  await renderer.compileAsync(object, PREPARE_CAMERA, scene as Scene)
+  const compiled = renderer.compileAsync(object, PREPARE_CAMERA, scene as Scene)
+  renderer.setRenderTarget(previous)
+  await compiled
   const textures = new Set<Texture>()
   object.traverse((o) => {
     const mesh = o as Mesh

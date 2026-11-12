@@ -50,6 +50,9 @@ const stage = useStage(async (eng) => {
   return s
 })
 
+const wide = useWideLayout()
+watch(wide, (w) => stage.value?.setShift(w ? WIDE_SHIFT : NARROW_SHIFT))
+
 function placeMarker(): void {
   const p = stage.value?.project(MARKER_LAT, MARKER_LON)
   if (p) marker.value = { x: p.x, y: p.y, visible: p.facing > MARKER_MIN_FACING }
@@ -142,13 +145,14 @@ useSeoMeta({
       </div>
     </section>
 
-    <div class="marker mono" :class="{ 'is-visible': marker.visible }" :style="{ transform: `translate(${marker.x - 13}px, ${marker.y - 13}px)` }" aria-hidden="true">
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1">
-        <path d="M1 7V1h6M19 1h6v6M25 19v6h-6M7 25H1v-6" /><circle cx="13" cy="13" r="1.5" fill="currentColor" stroke="none" />
-      </svg>
-      <span class="marker__lead" />
-      <span class="marker__txt"><b>{{ $t('observatory.marker') }}</b><br><span>{{ num(MARKER_LAT, 1) }}° N · {{ num(MARKER_LON, 1) }}° E</span></span>
-    </div>
+    <TargetMarker
+      class="marker"
+      :class="{ 'is-visible': marker.visible }"
+      :x="marker.x"
+      :y="marker.y"
+      :code="$t('observatory.marker')"
+      :readout="`${num(MARKER_LAT, 1)}° N · ${num(MARKER_LON, 1)}° E`"
+    />
 
     <p class="hint mono">{{ $t('observatory.hint') }}</p>
   </div>
@@ -183,13 +187,9 @@ useSeoMeta({
 
 .hint { position: absolute; right: var(--gutter); top: 4.9rem; margin: 0; color: var(--faint); }
 
-.marker { position: absolute; left: 0; top: 0; display: flex; align-items: center; color: var(--accent); opacity: 0; transition: opacity 0.35s; will-change: transform; }
+.marker { opacity: 0; transition: opacity 0.35s; }
 .marker.is-visible { opacity: 1; }
 .style-natural .marker { color: var(--fg); }
-.marker__lead { width: 46px; height: 1px; background: currentColor; opacity: 0.6; margin-left: 2px; }
-.marker__txt { padding-left: 10px; white-space: nowrap; line-height: 1.6; }
-.marker__txt b { font-weight: 500; color: var(--fg); }
-.marker__txt span { color: var(--muted); }
 .style-nocturne { --accent: #8fb3d9; }
 
 @media (max-height: 820px) and (min-width: 901px) { .sheet__note { display: none; } }
@@ -201,6 +201,7 @@ useSeoMeta({
   .sheet__desig { margin-bottom: 0; }
   .controls { gap: 0.75rem 1.4rem; }
   .actions { margin-left: 0; }
-  .hint, .marker__lead, .marker__txt span { display: none; }
+  .hint { display: none; }
+  .marker :deep(.target__lead), .marker :deep(.target__readout) { display: none; }
 }
 </style>

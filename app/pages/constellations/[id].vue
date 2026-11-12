@@ -69,6 +69,8 @@ const stage = useStage(async () => {
 })
 
 watch(view, (v) => stage.value?.setView(v))
+const wide = useWideLayout(WIDE_QUERY)
+watch(wide, (w) => stage.value?.setShift(w ? SHIFT.wide : SHIFT.narrow))
 watch([slotA, slotB], ([a, b]) => {
   stage.value?.setSelection(a, b)
   placeLabels()
@@ -141,7 +143,7 @@ useSeoMeta({
 <template>
   <div class="obj">
     <div class="obj__scrim" aria-hidden="true" />
-    <section class="panel interactive" :aria-label="tl(summary.name)">
+    <section class="panel panel-fade interactive" :aria-label="tl(summary.name)">
       <NuxtLink :to="localePath('constellations')" class="back mono">← {{ $t('constellations.title') }}</NuxtLink>
       <p class="eyebrow mono">{{ summary.latin }} · {{ summary.genitive }} · {{ summary.abbr }}</p>
       <h1 class="panel__title">{{ tl(summary.name) }}</h1>

@@ -13,6 +13,7 @@ const routeBase = computed(() => String(route.name ?? '').split('___')[0] ?? '')
       <NuxtLink :to="localePath('systems')" :aria-current="routeBase.startsWith('systems') ? 'page' : undefined">{{ $t('nav.systems') }}</NuxtLink>
       <NuxtLink :to="localePath('objects')" :aria-current="routeBase.startsWith('objects') ? 'page' : undefined">{{ $t('nav.objects') }}</NuxtLink>
       <NuxtLink :to="localePath('constellations')" :aria-current="routeBase.startsWith('constellations') ? 'page' : undefined">{{ $t('nav.constellations') }}</NuxtLink>
+      <NuxtLink :to="localePath('exploits')" :aria-current="routeBase.startsWith('exploits') ? 'page' : undefined">{{ $t('nav.exploits') }}</NuxtLink>
       <NuxtLink :to="localePath('create')" :aria-current="routeBase === 'create' ? 'page' : undefined">{{ $t('nav.create') }}</NuxtLink>
       <LangSwitch />
     </nav>
@@ -32,6 +33,12 @@ const routeBase = computed(() => String(route.name ?? '').split('___')[0] ?? '')
 .header__nav a { color: var(--muted); text-decoration: none; transition: color 0.2s; position: relative; white-space: nowrap; }
 .header__nav a:hover, .header__nav a[aria-current='page'] { color: var(--fg); }
 .header__nav a[aria-current='page']::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px; background: var(--accent); }
+/* Six sections and the language switch need ~760 px: below that the bar scrolls sideways instead of overflowing. */
+@media (max-width: 900px) {
+  .header__nav { min-width: 0; overflow-x: auto; scrollbar-width: none; padding-bottom: 6px; }
+  .header__nav::-webkit-scrollbar { display: none; }
+  .header__mark { flex: none; }
+}
 @media (max-width: 640px) {
   .header { padding: var(--space-4) var(--gutter); }
   .header__mark { font-size: 1.375rem; }

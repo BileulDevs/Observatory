@@ -35,7 +35,7 @@ export class ObjectStage implements Stage {
   private tween: Tween | null = null
   private readonly focus = new Vector3()
 
-  constructor(private render: ObjectRender, private readonly opts: ObjectStageOptions) {}
+  constructor(private render: ObjectRender, private opts: ObjectStageOptions) {}
 
   attach(ctx: StageContext): void {
     this.ctx = ctx
@@ -79,7 +79,7 @@ export class ObjectStage implements Stage {
 
   private build(ctx: StageContext): SpaceBody {
     const body = createBody(this.render, {
-      baker: ctx.baker, renderer: ctx.renderer, quality: ctx.quality, preview: false, sunDir: SUN_DIRECTION, sky: ctx.sky,
+      baker: ctx.baker, renderer: ctx.renderer, drawTarget: ctx.drawTarget, quality: ctx.quality, preview: false, sunDir: SUN_DIRECTION, sky: ctx.sky,
       invalidate: () => ctx.invalidate(),
     })
     this.body = body
@@ -105,6 +105,16 @@ export class ObjectStage implements Stage {
     const az = (body.view.azimuthDeg * Math.PI) / 180
     const d = body.radius * body.view.distance * (this.opts.distanceScale ?? 1)
     return out.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(d).add(this.focus)
+  }
+
+  /**
+   * New placement after a layout change (wide / narrow breakpoint): the object moves on screen at once; the zoom
+   * limits follow the new distance scale, and the default view uses it from the next recentre.
+   */
+  setLayout(opts: ObjectStageOptions): void {
+    this.opts = opts
+    this.ctx?.setViewShift(opts.shift)
+    if (this.body) this.fitControls(this.body)
   }
 
   /** Back to the default view. */

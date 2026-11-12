@@ -96,6 +96,11 @@ const stage = useStage(async (engine) => {
   instance.setMoonsVisible(showMoons.value)
   return instance
 })
+const wide = useWideLayout(WIDE_QUERY)
+watch(wide, (w) => {
+  const s = w ? SHIFTS.wide : SHIFTS.narrow
+  stage.value?.setShifts(s.browse, s.inspect, s.inspectDistance)
+})
 
 /**
  * Writes the selection to the URL once per tick. Selecting a moon emits two events (planet, then moon): written
@@ -292,7 +297,7 @@ useSeoMeta({
 
     <!-- Inspect panel -->
     <!-- Moon panel: replaces the planet panel while a moon is selected. -->
-    <section v-if="inspected && inspectedMoon" :key="`${inspected.id}/${inspectedMoon.id}`" class="panel interactive" :aria-label="tl(inspectedMoon.name)">
+    <section v-if="inspected && inspectedMoon" :key="`${inspected.id}/${inspectedMoon.id}`" class="panel panel-fade interactive" :aria-label="tl(inspectedMoon.name)">
       <button type="button" class="back mono" @click="selectMoon(null)">← {{ tl(inspected.name) }}</button>
       <p class="eyebrow mono">{{ system.kind === 'generated' ? $t('systems.moonFictional', { planet: tl(inspected.name) }) : $t('systems.moonOf', { planet: tl(inspected.name) }) }}</p>
       <h2 class="panel__title">{{ tl(inspectedMoon.name) }}</h2>
@@ -317,7 +322,7 @@ useSeoMeta({
       </nav>
     </section>
 
-    <section v-else-if="inspected" :key="inspected.id" class="panel interactive" :aria-label="tl(inspected.name)">
+    <section v-else-if="inspected" :key="inspected.id" class="panel panel-fade interactive" :aria-label="tl(inspected.name)">
       <button type="button" class="back mono" @click="inspect(null)">← {{ tl(system.name) }}</button>
       <p class="eyebrow mono">{{ ordinal(inspected.id) }} · {{ tl(inspected.kind) }}</p>
       <h2 class="panel__title">{{ tl(inspected.name) }}</h2>

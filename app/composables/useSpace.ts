@@ -80,8 +80,17 @@ export function useStage<T extends Stage>(factory: (engine: Engine) => T | Promi
         return
       }
       engine.setStage(s)
-      engine.afterNextFrame(settle)
       stage.value = s
+      // Stages that build their content after attach (exploit scenes) say when it is really there.
+      if (s.ready) {
+        try {
+          await s.ready
+        } catch (err) {
+          console.error('[space] stage content failed to load', err)
+        }
+        if (!alive) return
+      }
+      engine.afterNextFrame(settle)
     }, { immediate: true })
   })
 

@@ -89,7 +89,7 @@ export class ObjectCatalogueStage implements Stage {
     const next = this.pending.shift()
     if (next) {
       next.body = createBody(next.entry.render, {
-        baker: ctx.baker, renderer: ctx.renderer, quality: ctx.quality, preview: true, sunDir: SUN_DIRECTION, sky: ctx.sky,
+        baker: ctx.baker, renderer: ctx.renderer, drawTarget: ctx.drawTarget, quality: ctx.quality, preview: true, sunDir: SUN_DIRECTION, sky: ctx.sky,
         invalidate: () => ctx.invalidate(),
       })
       next.group.add(next.body.root)

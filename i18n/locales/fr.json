@@ -13,7 +13,8 @@
     "systems": "Systèmes solaires",
     "objects": "Objets",
     "create": "Création",
-    "constellations": "Constellations"
+    "constellations": "Constellations",
+    "exploits": "Exploits"
   },
   "space": {
     "unsupported": "WebGL 2 n'est pas disponible sur ce navigateur : la vue 3D ne peut pas s'afficher.",
@@ -552,5 +553,32 @@
       "shaders": "Compilation des shaders",
       "stage": "Première image de la scène"
     }
+  },
+  "exploits": {
+    "title": "Exploits",
+    "intro": "Des moments où l'on a fait ce qui n'avait jamais été fait, racontés étape par étape dans des scènes 3D construites d'après les archives. Ce qui est reconstitué ou simplifié est toujours signalé.",
+    "pageDescription": "{name} : un récit interactif en 3D, étape par étape.",
+    "enter": "Entrer",
+    "stepsAvailable": "{built} étapes sur {total} disponibles",
+    "step": "Étape {n} sur {total}",
+    "prev": "Étape précédente",
+    "next": "Étape suivante",
+    "play": "Lecture",
+    "pause": "Pause",
+    "replay": "Rejouer l'étape",
+    "upcoming": "en préparation",
+    "progressLabel": "Étapes",
+    "objects": "Dans la scène",
+    "objectsHint": "Cliquez un objet dans la scène ou dans cette liste.",
+    "notes": "Ce que vous voyez",
+    "kind": {
+      "reconstruction": "Reconstitution",
+      "simplification": "Simplification"
+    },
+    "sources": "Sources",
+    "close": "Fermer",
+    "keys": "← → étapes · Espace pause · Échap fermer",
+    "notFound": "Exploit introuvable",
+    "marker": "Repère {n}"
   }
 }

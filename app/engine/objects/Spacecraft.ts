@@ -1,12 +1,13 @@
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, BufferGeometry, CylinderGeometry, Group, InstancedMesh, LatheGeometry,
-  Matrix4, Mesh, MeshStandardMaterial, Quaternion, ShaderMaterial, Sphere, SphereGeometry, SRGBColorSpace, TextureLoader,
+  Matrix4, Mesh, MeshStandardMaterial, Quaternion, ShaderMaterial, Sphere, SphereGeometry,
   TorusGeometry, Vector2, Vector3, type Material, type Object3D, type Texture,
 } from 'three'
 import type { ObjectRender } from '~/types/objects'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { prepareForScene, sceneOf, serial } from './gltf'
 import { disposeModel, loadNasaModel, NASA_MODELS, type LoadedModel, type NasaModel } from './nasaModels'
+import { acquireEarthTexture, EARTH_ATMO_FAR, EARTH_ATMO_FRAG, EARTH_ATMO_VERT, releaseEarthTexture } from './earth'
 import { acquireCraftMaterials, releaseCraftMaterials, type CraftMaterials } from './spacecraftMaterials'
 import type { BodyContext, BodyView, SpaceBody } from './types'
 
@@ -26,30 +27,6 @@ const EARTH_RADIUS = 60
 const EARTH_GAP = 9
 /** Slow turn of the model on its stand, radians per second. */
 const DRIFT = 0.05
-const EARTH_TEXTURE = '/textures/solar/earth.jpg'
-
-const ATMO_VERT = /* glsl */`
-varying vec3 vNW;
-varying vec3 vPosW;
-void main(){
-  vNW = normalize(mat3(modelMatrix) * normal);
-  vPosW = (modelMatrix * vec4(position, 1.0)).xyz;
-  gl_Position = projectionMatrix * viewMatrix * vec4(vPosW, 1.0);
-}
-`
-const ATMO_FRAG = /* glsl */`
-uniform vec3 uSun;
-varying vec3 vNW;
-varying vec3 vPosW;
-void main(){
-  vec3 V = normalize(cameraPosition - vPosW);
-  vec3 N = normalize(vNW);
-  // Seen from inside the shell (back faces): brightest just above the limb, on the day side.
-  float limb = pow(max(1.0 - abs(dot(N, V)), 0.0), 3.0);
-  float day = smoothstep(-0.25, 0.4, dot(-N, uSun));
-  gl_FragColor = vec4(vec3(0.32, 0.55, 1.0) * limb * day * 1.6, 1.0);
-}
-`
 
 const VIEWS: Record<CraftRender['model'], BodyView> = {
   'iss': { elevationDeg: 26, azimuthDeg: 60, distance: 4.4 },
@@ -102,7 +79,7 @@ export class Spacecraft implements SpaceBody {
         const rot = MODEL_ROTATION[render.model]
         if (rot) scene.rotation.set(...rot)
         fit(scene, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1))
-        await prepareForScene(ctx.renderer, scene, sceneOf(this.root))
+        await prepareForScene(ctx.renderer, scene, sceneOf(this.root), ctx.drawTarget)
         if (this.disposed) {
           disposeModel(scene, this.mats)
           return
@@ -321,7 +298,7 @@ export class Spacecraft implements SpaceBody {
     // Show oceans and clouds under the craft rather than a pole.
     ground.rotation.set(0.35, 2.2, 0)
     const atmoMat = new ShaderMaterial({
-      vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG, uniforms: { uSun: { value: ctx.sunDir.clone() } },
+      vertexShader: EARTH_ATMO_VERT, fragmentShader: EARTH_ATMO_FRAG, uniforms: { uSun: { value: ctx.sunDir.clone() }, uI: { value: EARTH_ATMO_FAR } },
       side: BackSide, transparent: true, depthWrite: false, blending: AdditiveBlending,
     })
     this.extraMaterials.push(atmoMat)
@@ -482,36 +459,6 @@ export class Spacecraft implements SpaceBody {
       this.rod(g, start, start.clone().addScaledVector(dir, 0.12), 0.011, m.metal)
     })
   }
-}
-
-let earthTexture: Texture | null = null
-let earthUsers = 0
-const earthWaiting = new Set<() => void>()
-
-/**
- * The Earth map (2048 × 1024) shared by every low-orbit craft on screen: four catalogue thumbnails used to
- * download, decode and upload it four times. Redraw callbacks run once it has arrived.
- */
-function acquireEarthTexture(invalidate: () => void): Texture {
-  earthUsers++
-  if (!earthTexture) {
-    earthTexture = new TextureLoader().load(EARTH_TEXTURE, () => {
-      earthWaiting.forEach((f) => f())
-      earthWaiting.clear()
-    })
-    earthTexture.colorSpace = SRGBColorSpace
-    earthTexture.anisotropy = 8
-  }
-  if (!earthTexture.image) earthWaiting.add(invalidate)
-  return earthTexture
-}
-
-function releaseEarthTexture(): void {
-  earthUsers = Math.max(0, earthUsers - 1)
-  if (earthUsers > 0 || !earthTexture) return
-  earthTexture.dispose()
-  earthTexture = null
-  earthWaiting.clear()
 }
 
 /**

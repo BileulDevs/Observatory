@@ -36,6 +36,8 @@ const stage = useStage(async () => {
   return instance
 })
 watch(playing, (v) => stage.value?.setPlaying(v))
+const wide = useWideLayout(WIDE_QUERY)
+watch(wide, (w) => stage.value?.setLayout(w ? LAYOUT.wide : LAYOUT.narrow))
 
 const backTo = localePath({ name: 'objects', query: object.category === OBJECT_CATEGORIES[0] ? {} : { c: object.category } })
 const linkTo = (id: string) => localePath({ name: 'objects-id', params: { id } })
@@ -49,7 +51,7 @@ useSeoMeta({
 <template>
   <div class="obj">
     <div class="obj__scrim" aria-hidden="true" />
-    <section class="panel interactive" :aria-label="tl(object.name)">
+    <section class="panel panel-fade interactive" :aria-label="tl(object.name)">
       <NuxtLink :to="backTo" class="back mono">← {{ $t(`objects.categories.${object.category}.name`) }}</NuxtLink>
       <p class="eyebrow mono">{{ tl(object.kind) }}</p>
       <h1 class="panel__title">{{ tl(object.name) }}</h1>

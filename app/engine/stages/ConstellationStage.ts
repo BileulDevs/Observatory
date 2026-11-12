@@ -92,7 +92,7 @@ export class ConstellationStage implements Stage {
   private labelsStale = true
   private readonly tmp = new Vector3()
 
-  constructor(private readonly data: ConstellationData, private readonly shift: ViewShift, private readonly events: ConstellationEvents = {}) {
+  constructor(private readonly data: ConstellationData, private shift: ViewShift, private readonly events: ConstellationEvents = {}) {
     const known = data.stars.filter((s) => s.figure && s.distLy).map((s) => s.distLy!).sort((a, b) => a - b)
     const median = known[Math.floor(known.length / 2)] ?? 300
     for (const s of data.stars) this.positions.push(direction(s).multiplyScalar((s.distLy ?? median * UNKNOWN_DISTANCE) * LY))
@@ -387,6 +387,18 @@ export class ConstellationStage implements Stage {
       if (d < bestD) { bestD = d; best = i }
     })
     return best
+  }
+
+  /** Labels are re-projected on the redraw that follows a resize. */
+  resized(): void {
+    this.labelsStale = true
+  }
+
+  /** Moves the figure on screen (layout change at the wide / narrow breakpoint). */
+  setShift(shift: ViewShift): void {
+    this.shift = shift
+    this.ctx?.setViewShift(shift)
+    this.labelsStale = true
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {

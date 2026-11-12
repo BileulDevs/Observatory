@@ -2,7 +2,7 @@ import { Group, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Planet, type PlanetBakeProgress } from '../bodies/Planet'
 import type { ArtStyle, PlanetRender } from '../presets'
-import type { Stage, StageContext, StageFrame } from './Stage'
+import type { Stage, StageContext, StageFrame, ViewShift } from './Stage'
 
 /** Camera start: slightly above and to the right, so the terminator is visible. */
 const CAMERA_START: [number, number, number] = [0.6, 0.9, 6.6]
@@ -30,6 +30,8 @@ export interface SurfacePoint {
  */
 export class ObservatoryStage implements Stage {
   readonly root = new Group()
+  /** HTML overlay needs re-projecting on the next update even if nothing moved. */
+  private overlayStale = false
   private ctx: StageContext | null = null
   private planet: Planet | null = null
   private controls: OrbitControls | null = null
@@ -128,6 +130,17 @@ export class ObservatoryStage implements Stage {
     }
   }
 
+  /** The marker must be re-projected on the redraw that follows a resize. */
+  resized(): void {
+    this.overlayStale = true
+  }
+
+  /** Moves the planet on screen (layout change at the wide / narrow breakpoint). */
+  setShift(shift: ViewShift): void {
+    this.ctx?.setViewShift(shift)
+    this.overlayStale = true
+  }
+
   setActive(active: boolean): void {
     if (this.controls) this.controls.enabled = active
   }
@@ -142,7 +155,11 @@ export class ObservatoryStage implements Stage {
     const progress = this.planet.progress
     if (progress) this.events.onProgress?.(progress)
     const render = spin || moved
-    if (render) queueMicrotask(() => this.events.onFrame?.())
+    // The surface marker also moves when only the canvas changed size (resized()), with the planet standing still.
+    if (render || this.overlayStale) {
+      this.overlayStale = false
+      queueMicrotask(() => this.events.onFrame?.())
+    }
     // Keep the loop alive only while something moves: update() reports damping motion as `moved` until it
     // settles, and a new drag restarts the loop through the controls' change event. Returning true here kept
     // the loop (and this method) running 60 times a second on an idle, paused planet.

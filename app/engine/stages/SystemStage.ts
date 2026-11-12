@@ -147,6 +147,8 @@ export class SystemStage implements Stage {
   private order: string[] = []
   private focusIndex = 0
   private inspectedId_: string | null = null
+  /** Labels must be re-projected on the next update (canvas resized). */
+  private labelsStale = false
   private controls: OrbitControls | null = null
   private tweens: Tween[] = []
   private morph = 1
@@ -528,7 +530,10 @@ export class SystemStage implements Stage {
     this.starTime += scaled
     this.star?.update(this.starTime)
     if (spinning) render = true
-    if (render) this.emitLabels()
+    if (render || this.labelsStale) {
+      this.labelsStale = false
+      this.emitLabels()
+    }
     return { render, animating: true }
   }
 
@@ -702,6 +707,23 @@ export class SystemStage implements Stage {
     this.camTarget.copy(this.controls.target)
     this.controls.dispose()
     this.controls = null
+  }
+
+  /** Labels are re-projected on the redraw that follows a resize. */
+  resized(): void {
+    this.labelsStale = true
+  }
+
+  /**
+   * New placements after a layout change (wide / narrow breakpoint). Applied at once unless a flight is moving
+   * the frame, in which case the flight's end state picks them up; distances apply from the next inspection.
+   */
+  setShifts(browse: ViewShift, inspect: ViewShift, inspectDistance: number): void {
+    this.opts.browseShift = browse
+    this.opts.inspectShift = inspect
+    this.opts.inspectDistance = inspectDistance
+    if (this.ctx && this.tweens.length === 0) this.ctx.setViewShift(this.inspectedId_ ? inspect : browse)
+    this.labelsStale = true
   }
 
   private emitLabels(): void {

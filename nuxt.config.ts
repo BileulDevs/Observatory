@@ -107,6 +107,6 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     // Featured systems are reached by the crawler from the index; any other generated seed is rendered client-side.
-    prerender: { crawlLinks: true, routes: ['/', ...objectRoutes(), ...constellationRoutes()] },
+    prerender: { crawlLinks: true, routes: ['/', '/exploits', '/exploits/apollo-11', ...objectRoutes(), ...constellationRoutes()] },
   },
 })
