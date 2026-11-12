@@ -516,14 +516,31 @@
     "viewLabel": "Point de vue",
     "viewSky": "Vue depuis la Terre",
     "view3d": "Vue en 3D",
-    "skyNote": "Le point de vue de la Terre : la taille des points suit l'éclat apparent des étoiles.",
+    "skyNote": "Le point de vue de la Terre. Taille, éclat et couleur des points suivent la magnitude et la température des étoiles ; les étoiles du dessin sont mises en avant, celles du champ alentour restent discrètes.",
     "depthNote": "Chaque étoile est à sa vraie distance. Les traits bleus partent de la Terre (le point bleu) : c'est en regardant le long d'eux que la figure se reforme.",
     "skyHint": "Cliquer sur une étoile pour sa fiche",
     "clickHint": "Cliquez sur une étoile, dans le ciel ou dans la liste, pour voir sa fiche.",
     "stars": "Étoiles",
     "outsideFigure": "hors figure",
     "tooltip": "{name} · {d} a.l.",
-    "dataNote": "Distances tirées des parallaxes Hipparcos et Gaia (base HYG) : au-delà de quelques centaines d'années-lumière, l'incertitude peut dépasser 20 %."
+    "dataNote": "Distances tirées des parallaxes Hipparcos et Gaia (base HYG) : au-delà de quelques centaines d'années-lumière, l'incertitude peut dépasser 20 %.",
+    "measure": {
+      "title": "Mesurer une distance",
+      "reset": "Effacer",
+      "pickFirst": "Cliquez une première étoile",
+      "pickSecond": "Cliquez une deuxième étoile",
+      "remove": "Retirer cette étoile",
+      "value": "{d} années-lumière",
+      "unknown": "Distance inconnue pour l'une des deux étoiles : impossible de calculer leur séparation.",
+      "angle": "Écart vu de la Terre",
+      "depth": "Écart de distance à la Terre",
+      "light": "Trajet de la lumière entre elles",
+      "years": "{n} ans",
+      "illusion": "Dans l'espace, elles sont environ {r} fois plus éloignées l'une de l'autre qu'elles ne le paraissent dans le ciel.",
+      "method": "Calculé à partir de leurs coordonnées célestes et de leurs distances à la Terre (catalogue HYG), pas des positions dans la scène.",
+      "howto": "Cliquez deux étoiles, dans le ciel ou dans la liste. Un troisième clic remplace la deuxième, un clic sur une étoile choisie la retire, Échap efface tout."
+    },
+    "computedNote": "Valeurs marquées « calculé » : estimées à partir du catalogue (température d'après la couleur, rayon d'après la luminosité et la température, masse pour les étoiles de la séquence principale)."
   },
   "boot": {
     "progress": "{p} %",

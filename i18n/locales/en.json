@@ -516,14 +516,31 @@
     "viewLabel": "Point of view",
     "viewSky": "From Earth",
     "view3d": "In 3D",
-    "skyNote": "Earth's point of view: the size of each dot follows the star's apparent brightness.",
+    "skyNote": "Earth's point of view. Size, brightness and colour follow each star's magnitude and temperature; the figure's stars stand out, those of the surrounding field stay discreet.",
     "depthNote": "Each star is at its real distance. The blue lines start from Earth (the blue dot): look along them and the figure comes back together.",
     "skyHint": "Click a star for its fact sheet",
     "clickHint": "Click a star, in the sky or in the list, to see its fact sheet.",
     "stars": "Stars",
     "outsideFigure": "outside the figure",
     "tooltip": "{name} · {d} ly",
-    "dataNote": "Distances from Hipparcos and Gaia parallaxes (HYG database): beyond a few hundred light-years the uncertainty can exceed 20%."
+    "dataNote": "Distances from Hipparcos and Gaia parallaxes (HYG database): beyond a few hundred light-years the uncertainty can exceed 20%.",
+    "measure": {
+      "title": "Measure a distance",
+      "reset": "Clear",
+      "pickFirst": "Click a first star",
+      "pickSecond": "Click a second star",
+      "remove": "Remove this star",
+      "value": "{d} light-years",
+      "unknown": "Unknown distance for one of the two stars: their separation cannot be computed.",
+      "angle": "Separation seen from Earth",
+      "depth": "Difference in distance from Earth",
+      "light": "Light travel between them",
+      "years": "{n} years",
+      "illusion": "In space they are about {r} times farther apart than they look in the sky.",
+      "method": "Computed from their celestial coordinates and distances from Earth (HYG catalogue), not from positions in the scene.",
+      "howto": "Click two stars, in the sky or in the list. A third click replaces the second, clicking a chosen star removes it, Escape clears everything."
+    },
+    "computedNote": "Values marked \"computed\": estimated from the catalogue (temperature from the colour, radius from luminosity and temperature, mass for main-sequence stars)."
   },
   "boot": {
     "progress": "{p}%",

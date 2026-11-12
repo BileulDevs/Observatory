@@ -15,6 +15,10 @@ D3, HYG, ROOT = sys.argv[1], sys.argv[2], sys.argv[3]
 MATCH_DEG = 0.25      # line vertices are star positions rounded to 4 decimals: anything farther is a bad match
 MATCH_MAG = 7.0       # figures use naked-eye stars only
 EXTRA_MAG = 4.0       # other stars of the constellation shown (unlinked) when brighter than this
+FIELD_MAG = 6.0       # naked-eye stars around the figure, of any constellation: the sky the figure sits in
+FIELD_MARGIN = 1.2    # field radius, in figure radii from its centre
+FIELD_MAX = 260       # brightest N field stars kept per constellation (file size, draw cost)
+T_SUN = 5772
 PC_TO_LY = 3.26156
 UNKNOWN_PC = 100000   # HYG's placeholder for "no parallax"
 
@@ -64,7 +68,11 @@ figures = {}
 for f in json.load(open(os.path.join(D3, 'constellations.lines.json')))['features']:
     figures.setdefault(f['id'], []).extend(f['geometry']['coordinates'])
 
-def star_record(s, in_figure):
+def temperature(ci):
+    # Ballesteros (2012): effective temperature from the B−V colour index.
+    return 4600 * (1 / (0.92 * ci + 1.7) + 1 / (0.92 * ci + 0.62))
+
+def star_record(s, in_figure, role):
     pc = float(s['dist'])
     bayer = s['bayer']
     letter = ''
@@ -72,12 +80,22 @@ def star_record(s, in_figure):
         base, _, num = bayer.partition('-')
         letter = GREEK.get(base, base) + (num.translate(SUP) if num else '')
     desig = f"{letter} {s['con']}" if letter else (f"{s['flam']} {s['con']}" if s['flam'] else f"HIP {s['hip']}")
+    lum = float(s['lum'])
+    ci = float(s['ci']) if s['ci'] else None
+    temp = temperature(ci) if ci is not None and -0.4 < ci < 2.5 else None
+    # Stefan–Boltzmann: R/R☉ = √(L/L☉) / (T/T☉)². Only meaningful with a real distance (L comes from it).
+    radius = round(math.sqrt(lum) / (temp / T_SUN) ** 2, 2) if temp and pc < UNKNOWN_PC else None
+    spect = s['spect'] or ''
+    # Main-sequence mass from the mass–luminosity relation (L ∝ M^3.5); other classes have no simple relation.
+    dwarf = bool(re.search(r'(?<!I)V(?!I)', spect))
+    mass = round(lum ** (1 / 3.5), 2) if dwarf and pc < UNKNOWN_PC and lum > 0 else None
     return {
-        'hip': int(s['hip']), 'name': s['proper'] or None, 'designation': desig,
+        'hip': int(s['hip']), 'name': s['proper'] or None, 'designation': desig, 'con': s['con'], 'role': role,
+        'temp': round(temp) if temp else None, 'radius': radius, 'mass': mass,
         'ra': round(s['_ra'], 4), 'dec': round(s['_dec'], 4),
         'distLy': None if pc >= UNKNOWN_PC else round(pc * PC_TO_LY, 1),
         'mag': float(s['mag']), 'absmag': float(s['absmag']), 'spect': s['spect'] or None,
-        'ci': float(s['ci']) if s['ci'] else None, 'lum': round(float(s['lum']), 3), 'figure': in_figure,
+        'ci': ci, 'lum': round(lum, 3), 'figure': in_figure,
     }
 
 index = []
@@ -107,7 +125,18 @@ for abbr, strips in figures.items():
             chosen[s['hip']] = len(order)
             order.append(s)
     figure_count = len({i for seg in segments for i in seg})
-    recs = [star_record(s, i in {k for seg in segments for k in seg}) for i, s in enumerate(order)]
+    in_fig = {k for seg in segments for k in seg}
+    recs = [star_record(s, i in in_fig, 'figure' if i in in_fig else 'member') for i, s in enumerate(order)]
+    # Field: the naked-eye sky around the figure, whatever constellation each star belongs to.
+    fig_units = [order[i]['_u'] for i in in_fig] or [s['_u'] for s in order]
+    fc = [sum(u[k] for u in fig_units) for k in range(3)]
+    fn = math.sqrt(sum(v * v for v in fc))
+    fc = [v / fn for v in fc]
+    frad = max(math.acos(max(-1, min(1, sum(a * b for a, b in zip(u, fc))))) for u in fig_units) * FIELD_MARGIN + math.radians(3)
+    cosr = math.cos(frad)
+    field = [s for s in stars if s['_mag'] < FIELD_MAG and s['hip'] not in chosen and sum(a * b for a, b in zip(s['_u'], fc)) > cosr]
+    field.sort(key=lambda s: s['_mag'])
+    recs += [star_record(s, False, 'field') for s in field[:FIELD_MAX]]
     json.dump({'id': sid, 'abbr': abbr, 'stars': recs, 'segments': sorted(segments)},
               open(os.path.join(out_dir, f'{sid}.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     # Mini figure: gnomonic projection about the figure's centre, fitted into a 100 × 100 box, east to the left.

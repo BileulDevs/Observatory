@@ -20,10 +20,20 @@ const SKY_FOV_MAX = 95
 const SIDE_DISTANCE = 2.4
 /** Flight between the two views, seconds. */
 const FLIGHT = 2.2
-/** Star sprite size in px for magnitude 0, and its bounds. Each magnitude is 2.512× fainter: ~0.8× smaller here. */
-const SIZE_MAG0 = 15
-const SIZE_MIN = 3.5
-const SIZE_MAX = 22
+/**
+ * Star sprite size in px for magnitude 0, and its bounds. Each magnitude is 2.512× fainter in light: drawn
+ * 0.8× smaller and (in the shader) dimmer, so a magnitude-5 field star stays a faint pinpoint.
+ */
+const SIZE_MAG0 = 17
+const SIZE_MIN = 2.5
+const SIZE_MAX = 26
+/** Size factor by role: the figure's stars lead, the surrounding field recedes. */
+const ROLE_SIZE = { figure: 1, member: 0.85, field: 0.7 } as const
+/** Brightness factor by role (multiplies the magnitude-based intensity). */
+const ROLE_LIGHT = { figure: 1, member: 0.8, field: 0.55 } as const
+/** Colours of the two measurement slots (selection rings and the line between them). */
+const SLOT_A = new Color('#e8c27a')
+const SLOT_B = new Color('#7fd6e8')
 /** Earth marker size, px. */
 const EARTH_SIZE = 12
 /** Screen distance (px) under which a click or hover picks the nearest star. */
@@ -34,8 +44,10 @@ const CLICK_SLOP_PX = 5
 export type ConstellationView = 'sky' | '3d'
 
 export interface ConstellationEvents {
-  /** A star was clicked (or the empty sky: null). */
+  /** A star was clicked (or the empty sky: null). The page decides what that means (select, measure). */
   onSelect?: (hip: number | null) => void
+  /** A frame was drawn: HTML labels pinned to stars can be repositioned (see project()). */
+  onFrame?: () => void
   /** The pointer is over a star, at these client coordinates (or nothing: null). */
   onHover?: (hover: { hip: number; x: number; y: number } | null) => void
 }
@@ -65,10 +77,19 @@ export class ConstellationStage implements Stage {
   private readonly lines: LineSegments<BufferGeometry, LineBasicMaterial>
   private readonly sight: LineSegments<BufferGeometry, LineBasicMaterial>
   private readonly earth: Points<BufferGeometry, ShaderMaterial>
-  private readonly earthU = { uPR: { value: 1 }, uSelected: { value: -1 }, uHover: { value: -1 } }
-  private readonly starU = { uPR: { value: 1 }, uSelected: { value: -1 }, uHover: { value: -1 } }
+  private readonly earthU = {
+    uPR: { value: 1 }, uSelectedA: { value: -1 }, uSelectedB: { value: -1 }, uHover: { value: -1 },
+    uColorA: { value: SLOT_A }, uColorB: { value: SLOT_B },
+  }
+  private readonly starU = {
+    uPR: { value: 1 }, uSelectedA: { value: -1 }, uSelectedB: { value: -1 }, uHover: { value: -1 },
+    uColorA: { value: SLOT_A }, uColorB: { value: SLOT_B },
+  }
+  private readonly measure: LineSegments<BufferGeometry, LineBasicMaterial>
   private readonly pressAt = { x: 0, y: 0 }
   private hoverIndex = -1
+  /** True until labels have been placed once (the first frames come from attach/invalidate, not update). */
+  private labelsStale = true
   private readonly tmp = new Vector3()
 
   constructor(private readonly data: ConstellationData, private readonly shift: ViewShift, private readonly events: ConstellationEvents = {}) {
@@ -108,7 +129,8 @@ export class ConstellationStage implements Stage {
     this.lines = this.buildLines()
     this.sight = this.buildSightLines(use.map(([, i]) => i))
     this.earth = this.buildEarth()
-    this.root.add(this.sight, this.lines, this.stars, this.earth)
+    this.measure = this.buildMeasure()
+    this.root.add(this.sight, this.lines, this.measure, this.stars, this.earth)
   }
 
   attach(ctx: StageContext): void {
@@ -176,10 +198,38 @@ export class ConstellationStage implements Stage {
     this.setView(v)
   }
 
-  /** Highlights a star (from the list or a click). */
-  select(hip: number | null): void {
-    this.starU.uSelected.value = hip === null ? -1 : this.data.stars.findIndex((s) => s.hip === hip)
+  /**
+   * Shows the two measurement slots: gold ring on the first star, cyan on the second, and the line joining
+   * them in space (in the 3D view it shows the true separation; from Earth it overlays the sky).
+   */
+  setSelection(a: number | null, b: number | null): void {
+    const ia = a === null ? -1 : this.indexOf(a)
+    const ib = b === null ? -1 : this.indexOf(b)
+    this.starU.uSelectedA.value = ia
+    this.starU.uSelectedB.value = ib
+    const show = ia >= 0 && ib >= 0
+    this.measure.visible = show
+    if (show) {
+      const pos = this.measure.geometry.getAttribute('position') as BufferAttribute
+      pos.setXYZ(0, this.positions[ia]!.x, this.positions[ia]!.y, this.positions[ia]!.z)
+      pos.setXYZ(1, this.positions[ib]!.x, this.positions[ib]!.y, this.positions[ib]!.z)
+      pos.needsUpdate = true
+    }
     this.ctx?.invalidate()
+  }
+
+  /** Canvas-relative pixel position of a star, or null when behind the camera or off screen. */
+  project(hip: number): { x: number; y: number } | null {
+    const ctx = this.ctx
+    const i = this.indexOf(hip)
+    if (!ctx || i < 0) return null
+    const v = this.tmp.copy(this.positions[i]!).project(ctx.camera)
+    if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return null
+    return { x: (v.x * 0.5 + 0.5) * ctx.canvas.clientWidth, y: (-v.y * 0.5 + 0.5) * ctx.canvas.clientHeight }
+  }
+
+  private indexOf(hip: number): number {
+    return this.data.stars.findIndex((s) => s.hip === hip)
   }
 
   update(dt: number): StageFrame {
@@ -189,6 +239,11 @@ export class ConstellationStage implements Stage {
       render = true
     }
     if (this.controls?.enabled && this.controls.update()) render = true
+    // Labels follow the stars: after this frame is drawn, let the page re-project them.
+    if (render || this.labelsStale) {
+      this.labelsStale = false
+      queueMicrotask(() => this.events.onFrame?.())
+    }
     return { render, animating: this.tween !== null }
   }
 
@@ -208,7 +263,7 @@ export class ConstellationStage implements Stage {
       this.controls.dispose()
     }
     this.tween?.cancel()
-    for (const o of [this.stars, this.lines, this.sight, this.earth]) {
+    for (const o of [this.stars, this.lines, this.sight, this.earth, this.measure]) {
       o.geometry.dispose()
       o.material.dispose()
     }
@@ -240,6 +295,7 @@ export class ConstellationStage implements Stage {
     geo.setAttribute('aColor', new BufferAttribute(new Float32Array([0.35, 0.6, 1.4]), 3))
     geo.setAttribute('aSize', new BufferAttribute(new Float32Array([EARTH_SIZE]), 1))
     geo.setAttribute('aIndex', new BufferAttribute(new Float32Array([0]), 1))
+    geo.setAttribute('aLight', new BufferAttribute(new Float32Array([1]), 1))
     const points = new Points(geo, new ShaderMaterial({
       vertexShader: STAR_VERT, fragmentShader: STAR_FRAG, uniforms: this.earthU,
       transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending,
@@ -256,10 +312,19 @@ export class ConstellationStage implements Stage {
     const col = new Float32Array(n * 3)
     const size = new Float32Array(n)
     const index = new Float32Array(n)
+    const light = new Float32Array(n)
     this.data.stars.forEach((s, i) => {
       this.positions[i]!.toArray(pos, i * 3)
-      blackbodyColor(temperatureOf(s)).toArray(col, i * 3)
-      size[i] = Math.min(SIZE_MAX, Math.max(SIZE_MIN, SIZE_MAG0 * 0.8 ** s.mag)) * (s.figure ? 1 : 0.8)
+      // Colour saturated a little beyond the black body: real star colours are subtle, and on screen next
+      // to the glow they would all read as white.
+      const c = blackbodyColor(temperatureOf(s))
+      const grey = (c.r + c.g + c.b) / 3
+      c.r = grey + (c.r - grey) * 1.6; c.g = grey + (c.g - grey) * 1.6; c.b = grey + (c.b - grey) * 1.6
+      c.toArray(col, i * 3)
+      const role = s.role ?? (s.figure ? 'figure' : 'member')
+      size[i] = Math.min(SIZE_MAX, Math.max(SIZE_MIN, SIZE_MAG0 * 0.8 ** s.mag)) * ROLE_SIZE[role]
+      // Light ratio relative to magnitude 1, compressed (√) so the faint end stays visible on a screen.
+      light[i] = Math.min(2.2, Math.sqrt(2.512 ** (1 - s.mag))) * ROLE_LIGHT[role]
       index[i] = i
     })
     const geo = new BufferGeometry()
@@ -267,6 +332,7 @@ export class ConstellationStage implements Stage {
     geo.setAttribute('aColor', new BufferAttribute(col, 3))
     geo.setAttribute('aSize', new BufferAttribute(size, 1))
     geo.setAttribute('aIndex', new BufferAttribute(index, 1))
+    geo.setAttribute('aLight', new BufferAttribute(light, 1))
     const points = new Points(geo, new ShaderMaterial({
       vertexShader: STAR_VERT, fragmentShader: STAR_FRAG, uniforms: this.starU,
       transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending,
@@ -344,8 +410,20 @@ export class ConstellationStage implements Stage {
     if (Math.hypot(e.clientX - this.pressAt.x, e.clientY - this.pressAt.y) > CLICK_SLOP_PX) return
     const i = this.pick(e.clientX, e.clientY)
     const hip = i >= 0 ? this.data.stars[i]!.hip : null
-    this.select(hip)
     this.events.onSelect?.(hip)
+  }
+
+  /** The measuring line: two vertices rewritten by setSelection(). */
+  private buildMeasure(): LineSegments<BufferGeometry, LineBasicMaterial> {
+    const geo = new BufferGeometry()
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(6), 3))
+    const line = new LineSegments(geo, new LineBasicMaterial({
+      color: SLOT_B, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false,
+    }))
+    line.frustumCulled = false
+    line.renderOrder = 2
+    line.visible = false
+    return line
   }
 }
 
@@ -367,31 +445,58 @@ const STAR_VERT = /* glsl */`
 attribute vec3 aColor;
 attribute float aSize;
 attribute float aIndex;
+attribute float aLight;
 uniform float uPR;
-uniform float uSelected;
+uniform float uSelectedA;
+uniform float uSelectedB;
 uniform float uHover;
+uniform vec3 uColorA;
+uniform vec3 uColorB;
 varying vec3 vColor;
+varying float vLight;
+varying vec3 vRingColor;
 varying float vRing;
+varying float vSpikes;
 void main(){
   vColor = aColor;
-  float sel = abs(aIndex - uSelected) < 0.5 ? 1.0 : 0.0;
+  vLight = aLight;
+  float a = abs(aIndex - uSelectedA) < 0.5 ? 1.0 : 0.0;
+  float b = abs(aIndex - uSelectedB) < 0.5 ? 1.0 : 0.0;
   float hov = abs(aIndex - uHover) < 0.5 ? 1.0 : 0.0;
-  vRing = max(sel, hov * 0.6);
-  // Fixed screen size (no distance attenuation): a star's dot shows how bright it looks from Earth, in both views.
-  gl_PointSize = (aSize + vRing * 14.0) * uPR;
+  vRing = max(max(a, b), hov * 0.5);
+  vRingColor = b > 0.5 ? uColorB : a > 0.5 ? uColorA : vec3(0.85, 0.85, 0.85);
+  // Only the brightest stars get diffraction spikes, as in a telescope photograph.
+  vSpikes = smoothstep(1.2, 2.0, aLight);
+  // The sprite is enlarged for the ring, and for the spikes' reach on the brightest stars.
+  float size = aSize * (1.0 + vSpikes * 1.4) + vRing * 18.0;
+  // Fixed screen size (no distance attenuation): a dot shows how bright the star looks from Earth, in both views.
+  gl_PointSize = size * uPR;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
 
 const STAR_FRAG = /* glsl */`
 varying vec3 vColor;
+varying float vLight;
+varying vec3 vRingColor;
 varying float vRing;
+varying float vSpikes;
 void main(){
   vec2 c = gl_PointCoord - 0.5;
-  float r = length(c) * 2.0;
-  float core = exp(-r * r * 9.0) * 1.6 + exp(-r * 3.5) * 0.35;
-  // Selection ring, drawn in the enlarged sprite around the star.
-  float ring = vRing * smoothstep(0.08, 0.0, abs(r - 0.82)) * 0.9;
-  gl_FragColor = vec4(vColor * core + vec3(0.85, 0.72, 0.5) * ring, 1.0);
+  // Rescale so the star itself keeps the same footprint whatever the extra room for ring and spikes.
+  float grow = 1.0 + vSpikes * 1.4;
+  float r = length(c) * 2.0 * grow;
+  // Core (white-hot centre), coloured halo, wide faint glow.
+  float core = exp(-r * r * 22.0);
+  float halo = exp(-r * r * 5.0);
+  float glow = exp(-r * 2.6) * 0.25;
+  // Four thin spikes along the axes, fading outwards.
+  vec2 q = abs(c) * 2.0 * grow;
+  float spikes = vSpikes * (exp(-q.x * 60.0) * exp(-q.y * 1.6) + exp(-q.y * 60.0) * exp(-q.x * 1.6)) * 0.55;
+  vec3 col = mix(vColor, vec3(1.0), 0.65) * core * 1.8 + vColor * (halo * 0.9 + glow + spikes);
+  // Selection ring at a fixed radius in the enlarged sprite.
+  float rr = length(c) * 2.0;
+  float ring = vRing * smoothstep(0.06, 0.0, abs(rr - 0.86)) * 0.9;
+  gl_FragColor = vec4(col * vLight + vRingColor * ring, 1.0);
 }
 `

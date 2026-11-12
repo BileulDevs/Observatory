@@ -42,6 +42,15 @@ export interface ConstellationStar {
   lum: number
   /** Part of the traditional figure (joined by lines); otherwise a bright star of the area. */
   figure: boolean
+  /** IAU abbreviation of the constellation it belongs to (field stars can belong to a neighbour). */
+  con: string
+  /** figure: joined by the lines; member: other bright star of the constellation; field: naked-eye star around. */
+  role: 'figure' | 'member' | 'field'
+  /** Computed in tools/constellations.py: temperature from B−V (K), radius from L and T (R☉), mass from the
+   *  mass–luminosity relation for main-sequence stars only (M☉). Null when the inputs are missing. */
+  temp: number | null
+  radius: number | null
+  mass: number | null
 }
 
 /** The data the 3D page loads: stars and the figure's segments (index pairs into stars). */
