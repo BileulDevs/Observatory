@@ -39,6 +39,26 @@ const HOST_GLOW = 0.16
 const MAX_DISK_INTENSITY = 1.6
 /** Points in the gas stream of an X-ray binary. */
 const STREAM_POINTS = 1400
+/** Default camera azimuth, degrees. The companion is placed from it, so changing it moves the star with the view. */
+const VIEW_AZIMUTH_DEG = -18
+/** Default camera distance in body radii, without / with a companion (the companion widens the body's radius). */
+const VIEW_DISTANCE = 3.4
+const VIEW_DISTANCE_BINARY = 3
+/**
+ * Where the companion sits, as weights of the default view's screen-right, depth (away from the camera) and up
+ * directions: below and to the right of the hole. It must stay clear of the lensing sphere, which hides whatever is
+ * behind it (a star placed behind the hole is invisible), and inside the room the page leaves: the fact panel on
+ * the left, the scene buttons at the top right. More depth tucks the star towards the lens edge; more right pushes
+ * it off-screen on narrow windows; more up runs it into the buttons. Checked at 1108 × 720 with the panel open:
+ * about 45 px of sky between star and lens, 60 px from the right edge.
+ */
+const COMPANION_RIGHT = 0.4
+const COMPANION_DEPTH = 0.2
+const COMPANION_UP = -0.4
+/** Bulge of the gas stream's curve, in disk radii, towards the camera side. */
+const STREAM_BULGE = 0.5
+/** Where the stream meets the disk, as a share of the disk's outer radius. */
+const STREAM_END = 0.85
 
 /**
  * A black hole with its accretion disk, seen through its own gravitational lens. Optional relativistic jets,
@@ -56,6 +76,8 @@ export class BlackHole implements SpaceBody {
   private readonly jets: Mesh<ConeGeometry, ShaderMaterial>[] = []
   private readonly jetU: { uColor: { value: Color }; uI: { value: number }; uTime: { value: number } } | null = null
   private readonly companion: Star | null = null
+  /** Middle of the gas stream's curve, in the body's frame: the stream marker's point. */
+  private readonly streamMid = new Vector3()
   private readonly stream: Points<BufferGeometry, ShaderMaterial> | null = null
   private readonly host: Mesh<PlaneGeometry, ShaderMaterial> | null = null
   private readonly parentQ = new Quaternion()
@@ -63,7 +85,6 @@ export class BlackHole implements SpaceBody {
   private readonly render: BlackHoleRender
   private readonly center = new Vector3()
   private readonly side = new Vector3()
-  private readonly tmp = new Vector3()
 
   constructor(render: BlackHoleRender, ctx: BodyContext) {
     this.render = render
@@ -120,10 +141,20 @@ export class BlackHole implements SpaceBody {
     if (render.companion) {
       const c = render.companion
       this.companion = new Star(c.temperatureK, c.radius, render.seed)
-      // Behind and above the hole from the default view, so both share the frame without the star crossing the lens.
-      this.companion.root.position.set(c.distance * 0.62, -c.distance * 0.12, -c.distance * 0.75)
+      // Beside the hole from the default view (see COMPANION_*). It used to sit almost straight behind the hole,
+      // inside the lensing sphere's silhouette, which drew the lensed sky over it: star and stream were hidden.
+      const az = (VIEW_AZIMUTH_DEG * Math.PI) / 180
+      const toCamera = new Vector3(Math.sin(az), 0, Math.cos(az))
+      const right = new Vector3(Math.cos(az), 0, -Math.sin(az))
+      this.companion.root.position
+        .copy(right).multiplyScalar(COMPANION_RIGHT)
+        .addScaledVector(toCamera, -COMPANION_DEPTH)
+        .addScaledVector(UP, COMPANION_UP)
+        .setLength(c.distance)
       this.root.add(this.companion.root)
-      this.stream = buildStream(this.companion.root.position, c.radius, render.diskOuter, render.seed)
+      this.stream = buildStream(this.companion.root.position, c.radius, render.diskOuter, toCamera, render.seed, this.streamMid)
+      // Drawn after the lens: the stream ends on the disk's near side, in front of what the lens draws there.
+      this.stream.renderOrder = 1
       this.root.add(this.stream)
     }
 
@@ -141,7 +172,7 @@ export class BlackHole implements SpaceBody {
 
     this.radius = render.companion ? render.companion.distance + render.companion.radius : render.diskOuter
     this.minDistance = (lensRadius / this.radius) * 1.15
-    this.view = { elevationDeg: render.tiltDeg, azimuthDeg: -18, distance: render.companion ? 2.6 : 3.4 }
+    this.view = { elevationDeg: render.tiltDeg, azimuthDeg: VIEW_AZIMUTH_DEG, distance: render.companion ? VIEW_DISTANCE_BINARY : VIEW_DISTANCE }
   }
 
   update(_dt: number, time: number, camera: PerspectiveCamera): void {
@@ -181,10 +212,8 @@ export class BlackHole implements SpaceBody {
           : null
       case 'stream': {
         if (!this.companion) return null
-        // Halfway along the gas stream, from the star to the disk's rim.
-        this.companion.root.getWorldPosition(out)
-        const rim = this.tmp.copy(out).sub(this.center).setLength(r.diskOuter).add(this.center)
-        return out.lerp(rim, 0.5)
+        // Middle of the curve itself: the straight star-to-rim midpoint lies off the bent stream.
+        return this.root.localToWorld(out.copy(this.streamMid))
       }
       case 'host': return r.host ? out.copy(this.center).addScaledVector(this.side, r.host.radius * 0.5) : null
       default: return null
@@ -212,12 +241,20 @@ export class BlackHole implements SpaceBody {
 /**
  * Gas pulled from the companion through its inner Lagrange point, curving into the disk's outer edge.
  * Built once as a cloud of points along a quadratic curve; the shader animates their brightness.
+ * The stream joins the disk side-on (gas carries orbital motion, it does not fall straight in), on the side facing
+ * `toCamera`: on the far side it would run behind the lensing sphere and vanish. Writes the curve's middle to `mid`.
  */
-function buildStream(star: Vector3, starRadius: number, diskOuter: number, seed: number): Points<BufferGeometry, ShaderMaterial> {
+function buildStream(
+  star: Vector3, starRadius: number, diskOuter: number, toCamera: Vector3, seed: number, mid: Vector3,
+): Points<BufferGeometry, ShaderMaterial> {
   const rnd = mulberry32(seed * 91 + 7)
   const start = star.clone().multiplyScalar(1 - starRadius / star.length())
-  const end = new Vector3(star.z, 0, -star.x).normalize().multiplyScalar(diskOuter * 0.85)
-  const ctrl = start.clone().lerp(end, 0.5).add(new Vector3(0, 0, diskOuter * 0.5))
+  const end = new Vector3(star.z, 0, -star.x).normalize()
+  if (end.dot(toCamera) < 0) end.negate()
+  end.multiplyScalar(diskOuter * STREAM_END)
+  const ctrl = start.clone().lerp(end, 0.5).addScaledVector(toCamera, diskOuter * STREAM_BULGE)
+  // Quadratic Bézier at t = 0.5: a quarter of each end plus half the control point.
+  mid.copy(start).add(end).multiplyScalar(0.25).addScaledVector(ctrl, 0.5)
   const pos = new Float32Array(STREAM_POINTS * 3)
   const ts = new Float32Array(STREAM_POINTS)
   const sizes = new Float32Array(STREAM_POINTS)

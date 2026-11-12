@@ -13,11 +13,6 @@ const NARROW_SHIFT = { x: 0, y: -0.2 }
 const QUALITY_OPTIONS = [512, 1024, 2048] as const
 /** Seed shown on first visit: a planet that reads well (continents and oceans both visible). */
 const DEFAULT_SEED = 2718
-/** Marker position on the surface, degrees. */
-const MARKER_LAT = 18
-const MARKER_LON = 34
-/** Below this facing value the marker is hidden: it would sit on the limb or behind the planet. */
-const MARKER_MIN_FACING = 0.25
 /** How often the readout polls render stats, ms. */
 const STATS_INTERVAL = 500
 /** Clouds are baked at half the surface size (see Planet.ts), RGBA8 vs RGBA16F, both with mipmaps (×4/3). */
@@ -37,7 +32,6 @@ const spin = ref(true)
 const quality = ref<number>(1024)
 const progress = ref<{ done: number; total: number } | null>(null)
 const stats = ref<{ fps: number; idle: boolean } | null>(null)
-const marker = ref<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false })
 
 const stage = useStage(async (eng) => {
   quality.value = Math.min(eng.quality.bakeRes, 2048)
@@ -45,18 +39,12 @@ const stage = useStage(async (eng) => {
   const { ObservatoryStage } = await import('~/engine/stages/ObservatoryStage')
   const s: ObservatoryStageType = new ObservatoryStage({ type: type.value, seed: seed.value }, style.value, {
     onProgress: (p) => { progress.value = p },
-    onFrame: placeMarker,
   })
   return s
 })
 
 const wide = useWideLayout()
 watch(wide, (w) => stage.value?.setShift(w ? WIDE_SHIFT : NARROW_SHIFT))
-
-function placeMarker(): void {
-  const p = stage.value?.project(MARKER_LAT, MARKER_LON)
-  if (p) marker.value = { x: p.x, y: p.y, visible: p.facing > MARKER_MIN_FACING }
-}
 
 watch(style, (v) => {
   sunAz.value = STYLE_PARAMS[v].sunAz
@@ -145,14 +133,6 @@ useSeoMeta({
       </div>
     </section>
 
-    <TargetMarker
-      class="marker"
-      :class="{ 'is-visible': marker.visible }"
-      :x="marker.x"
-      :y="marker.y"
-      :readout="`${num(MARKER_LAT, 1)}° N · ${num(MARKER_LON, 1)}° E`"
-    />
-
     <p class="hint mono">{{ $t('observatory.hint') }}</p>
   </div>
 </template>
@@ -186,9 +166,6 @@ useSeoMeta({
 
 .hint { position: absolute; right: var(--gutter); top: 4.9rem; margin: 0; color: var(--faint); }
 
-.marker { opacity: 0; transition: opacity 0.35s; }
-.marker.is-visible { opacity: 1; }
-.style-natural .marker { color: var(--fg); }
 .style-nocturne { --accent: #8fb3d9; }
 
 @media (max-height: 820px) and (min-width: 901px) { .sheet__note { display: none; } }
@@ -201,6 +178,5 @@ useSeoMeta({
   .controls { gap: 0.75rem 1.4rem; }
   .actions { margin-left: 0; }
   .hint { display: none; }
-  .marker :deep(.target__lead), .marker :deep(.target__readout) { display: none; }
 }
 </style>

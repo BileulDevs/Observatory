@@ -240,7 +240,7 @@ export const BLACK_HOLES: SpaceObject[] = [
     ],
     render: {
       kind: 'black-hole', diskTemperatureK: 20000, diskIntensity: 1.1, diskOuter: 10, tiltDeg: 20, seed: 5,
-      companion: { temperatureK: 30000, radius: 4.2, distance: 21 },
+      companion: { temperatureK: 30000, radius: 4.2, distance: 28 },
     },
     markers: [
       {
