@@ -1,4 +1,4 @@
-import { Group, Vector3 } from 'three'
+import { Group } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Planet, type PlanetBakeProgress } from '../bodies/Planet'
 import type { ArtStyle, PlanetRender } from '../presets'
@@ -13,16 +13,6 @@ const MAX_DISTANCE = 14
 export interface ObservatoryEvents {
   /** Full-resolution bake progress; null once done. */
   onProgress?: (p: PlanetBakeProgress | null) => void
-  /** Called after each rendered frame, for HTML elements pinned to the surface. */
-  onFrame?: () => void
-}
-
-/** Screen position of a surface point. */
-export interface SurfacePoint {
-  x: number
-  y: number
-  /** Cosine between the surface normal and the view direction: ≤ 0 means on the far side. */
-  facing: number
 }
 
 /**
@@ -30,8 +20,6 @@ export interface SurfacePoint {
  */
 export class ObservatoryStage implements Stage {
   readonly root = new Group()
-  /** HTML overlay needs re-projecting on the next update even if nothing moved. */
-  private overlayStale = false
   private ctx: StageContext | null = null
   private planet: Planet | null = null
   private controls: OrbitControls | null = null
@@ -39,8 +27,6 @@ export class ObservatoryStage implements Stage {
   private style: ArtStyle
   private spin = true
   private readonly events: ObservatoryEvents
-  private readonly tmp = new Vector3()
-  private readonly tmp2 = new Vector3()
 
   constructor(spec: PlanetRender, style: ArtStyle, events: ObservatoryEvents = {}) {
     this.spec = { ...spec }
@@ -110,35 +96,9 @@ export class ObservatoryStage implements Stage {
     this.ctx?.invalidate()
   }
 
-  /** Projects a point given in planet latitude/longitude (degrees) to canvas pixels. */
-  project(latDeg: number, lonDeg: number): SurfacePoint | null {
-    const ctx = this.ctx
-    const planet = this.planet
-    if (!ctx || !planet) return null
-    const lat = (latDeg * Math.PI) / 180
-    const lon = (lonDeg * Math.PI) / 180
-    const p = this.tmp.set(Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon))
-    planet.surfaceToWorld(p)
-    const nx = p.x - planet.center.x, ny = p.y - planet.center.y, nz = p.z - planet.center.z
-    const toCam = this.tmp2.copy(ctx.camera.position).sub(p).normalize()
-    const facing = (nx * toCam.x + ny * toCam.y + nz * toCam.z) / Math.hypot(nx, ny, nz)
-    p.project(ctx.camera)
-    return {
-      x: (p.x * 0.5 + 0.5) * ctx.canvas.clientWidth,
-      y: (-p.y * 0.5 + 0.5) * ctx.canvas.clientHeight,
-      facing,
-    }
-  }
-
-  /** The marker must be re-projected on the redraw that follows a resize. */
-  resized(): void {
-    this.overlayStale = true
-  }
-
   /** Moves the planet on screen (layout change at the wide / narrow breakpoint). */
   setShift(shift: ViewShift): void {
     this.ctx?.setViewShift(shift)
-    this.overlayStale = true
   }
 
   setActive(active: boolean): void {
@@ -155,11 +115,6 @@ export class ObservatoryStage implements Stage {
     const progress = this.planet.progress
     if (progress) this.events.onProgress?.(progress)
     const render = spin || moved
-    // The surface marker also moves when only the canvas changed size (resized()), with the planet standing still.
-    if (render || this.overlayStale) {
-      this.overlayStale = false
-      queueMicrotask(() => this.events.onFrame?.())
-    }
     // Keep the loop alive only while something moves: update() reports damping motion as `moved` until it
     // settles, and a new drag restarts the loop through the controls' change event. Returning true here kept
     // the loop (and this method) running 60 times a second on an idle, paused planet.
