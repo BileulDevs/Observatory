@@ -2,6 +2,14 @@ import { GLSL_NOISE } from './noise'
 
 /**
  * Bake shaders: evaluate the expensive procedural fields once, into cubemaps (see CubeBaker).
+ *
+ * BAKE_FRAG is compiled once per variant (`BAKE_VARIANT` define, values in `BakeVariant`, CubeBaker.ts), and each
+ * program only contains the code of its own field. It used to be a single program choosing the field with
+ * `uPass` / `uType` uniforms: Direct3D (ANGLE, i.e. Chrome, Edge and Firefox on Windows) inlines every function
+ * and unrolls every loop, so that program held all six fields, three times over for the gradient taps. Measured on
+ * an RTX 4080 machine, it took 24 s to compile, on the main thread, at the first visit (later visits hit the
+ * browser's shader cache, which is why only an empty cache froze). Split, the variants take 0.1 s (sky) to
+ * 2.6 s (arid), each compiled in the background only when a planet of that kind is first shown.
  */
 export const BAKE_VERT = /* glsl */`
 varying vec3 vDir;
@@ -9,13 +17,20 @@ void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix *
 `
 
 /**
- * Passes: 0 surface data (RGBA16F: height, tangent gradient x/y, type extra),
- * 1 clouds (RGBA8: coverage, fine density), 2 sky (RGBA8: radiance x10).
+ * Variants (BAKE_VARIANT): sky (RGBA8: radiance x10), clouds (RGBA8: coverage, fine density), gas giant bands
+ * (RGBA16F), and the three solid surfaces, ocean / arid / ice (RGBA16F: height, tangent gradient x/y, type extra).
  */
 export const BAKE_FRAG = /* glsl */`
 ${GLSL_NOISE}
-uniform int uType;
-uniform int uPass;
+// Must match BakeVariant in CubeBaker.ts: the material passes the number, these names only make the #ifs readable.
+#define VARIANT_SKY 0
+#define VARIANT_CLOUDS 1
+#define VARIANT_GAS 2
+#define VARIANT_OCEAN 3
+#define VARIANT_ARID 4
+#define VARIANT_ICE 5
+#define SOLID_SURFACE (BAKE_VARIANT == VARIANT_OCEAN || BAKE_VARIANT == VARIANT_ARID || BAKE_VARIANT == VARIANT_ICE)
+
 uniform vec3 uSeed;
 uniform float uTexel;
 // Highest noise frequency the target resolution can hold. Octaves above it would alias into per-texel grain.
@@ -29,6 +44,7 @@ vec3 rotateAxis(vec3 p, vec3 axis, float a){
   return p * cos(a) + cross(axis, p) * sin(a) + axis * dot(axis, p) * (1.0 - cos(a));
 }
 
+#if BAKE_VARIANT == VARIANT_ARID
 float crater(vec3 p, float scale, float so, float density){
   // Craters smaller than a few texels only add noise: fade the whole layer out instead.
   float fade = 1.0 - smoothstep(0.12, 0.3, scale / uMaxFreq);
@@ -53,7 +69,9 @@ float crater(vec3 p, float scale, float so, float density){
   }
   return acc * fade;
 }
+#endif
 
+#if BAKE_VARIANT == VARIANT_ICE
 vec2 worley(vec3 p){
   vec3 i = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0;
@@ -65,7 +83,9 @@ vec2 worley(vec3 p){
   }
   return sqrt(vec2(d1, d2));
 }
+#endif
 
+#if BAKE_VARIANT == VARIANT_OCEAN
 float hOcean(vec3 p, out float extra){
   vec3 q = p * 1.25 + uSeed;
   vec3 w = vec3(fbm(q + vec3(1.7, 9.2, 3.1), 4), fbm(q + vec3(8.3, 2.8, 5.4), 4), fbm(q + vec3(4.1, 6.6, 0.7), 4));
@@ -79,6 +99,9 @@ float hOcean(vec3 p, out float extra){
   return h;
 }
 
+#endif
+
+#if BAKE_VARIANT == VARIANT_ARID
 float hArid(vec3 p, out float extra){
   vec3 q = p * 1.1 + uSeed;
   vec3 w = vec3(fbm(q + 1.3, 3), fbm(q + 7.7, 3), fbm(q + 4.4, 3));
@@ -92,6 +115,9 @@ float hArid(vec3 p, out float extra){
   return h;
 }
 
+#endif
+
+#if BAKE_VARIANT == VARIANT_ICE
 float hIce(vec3 p, out float extra){
   vec3 q = p + uSeed;
   vec3 w = vec3(fbm(q * 1.5 + 2.1, 4), fbm(q * 1.5 + 5.3, 4), fbm(q * 1.5 + 8.8, 4));
@@ -112,13 +138,22 @@ float hIce(vec3 p, out float extra){
   return h;
 }
 
-float heightAt(vec3 p, out float extra){
-  extra = 0.0; // D3D (ANGLE) warns X4000 otherwise: it cannot prove every branch below writes it
-  if (uType == 0) return hOcean(p, extra);
-  if (uType == 1) return hArid(p, extra);
-  return hIce(p, extra);
-}
+#endif
 
+#if SOLID_SURFACE
+float heightAt(vec3 p, out float extra){
+  extra = 0.0; // D3D (ANGLE) warns X4000 when it cannot prove that the callee writes it
+#if BAKE_VARIANT == VARIANT_OCEAN
+  return hOcean(p, extra);
+#elif BAKE_VARIANT == VARIANT_ARID
+  return hArid(p, extra);
+#else
+  return hIce(p, extra);
+#endif
+}
+#endif
+
+#if BAKE_VARIANT == VARIANT_GAS
 vec4 gasGiant(vec3 d){
   vec3 p = d;
   float storm = 0.0;
@@ -144,7 +179,9 @@ vec4 gasGiant(vec3 d){
   float band = p.y + turb * 0.025 + shear * 0.05 + 0.012 * fbm(vec3(p.x * 9.0, p.y * 70.0, p.z * 9.0) + uSeed, OC(70.0, 5));
   return vec4(band, turb * 0.5 + 0.5, storm, 0.0);
 }
+#endif
 
+#if BAKE_VARIANT == VARIANT_CLOUDS
 vec4 clouds(vec3 d){
   vec3 p = d;
   for (int k = 0; k < 6; k++) {
@@ -168,7 +205,9 @@ vec4 clouds(vec3 d){
   cov = clamp(cov * mix(0.7, 1.2, fine), 0.0, 1.0);
   return vec4(cov, fine, 0.0, 1.0);
 }
+#endif
 
+#if BAKE_VARIANT == VARIANT_SKY
 vec4 sky(vec3 d){
   vec3 gN = normalize(vec3(0.3, 1.0, 0.45));
   float b = dot(d, gN);
@@ -180,12 +219,17 @@ vec4 sky(vec3 d){
   col += vec3(0.55, 0.32, 0.48) * pow(fbm(d * 1.6 + 20.0, 5) * 0.5 + 0.5, 4.0) * 0.012;
   return vec4(col * 10.0, 1.0);
 }
+#endif
 
 void main(){
   vec3 d = normalize(vDir);
-  if (uPass == 1) { gl_FragColor = clouds(d); return; }
-  if (uPass == 2) { gl_FragColor = sky(d); return; }
-  if (uType == 2) { gl_FragColor = gasGiant(d); return; }
+#if BAKE_VARIANT == VARIANT_SKY
+  gl_FragColor = sky(d);
+#elif BAKE_VARIANT == VARIANT_CLOUDS
+  gl_FragColor = clouds(d);
+#elif BAKE_VARIANT == VARIANT_GAS
+  gl_FragColor = gasGiant(d);
+#else
   vec3 t1 = tangentU(d);
   vec3 t2 = cross(d, t1);
   float e = uTexel;
@@ -194,5 +238,6 @@ void main(){
   float h1 = heightAt(normalize(d + t1 * e), ex1);
   float h2 = heightAt(normalize(d + t2 * e), ex2);
   gl_FragColor = vec4(h0, (h1 - h0) / e, (h2 - h0) / e, extra);
+#endif
 }
 `

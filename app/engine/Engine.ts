@@ -141,7 +141,7 @@ export class Engine {
     this.finish.uniforms.uVig!.value = VIGNETTE
     this.composer.addPass(this.finish)
 
-    this.baker = new CubeBaker(this.renderer, BAKE_STEP_PIXELS[this.quality.tier])
+    this.baker = new CubeBaker(this.renderer, BAKE_STEP_PIXELS[this.quality.tier], () => this.invalidate())
     this.backdrop = new Backdrop(this.baker, this.quality.starCount)
     this.scene.add(this.backdrop.root)
     this.events.onBoot?.('sky')
@@ -355,7 +355,9 @@ export class Engine {
     this.inFrame = true
 
     // Shaders still compiling in the background: wait, without drawing (that would compile them synchronously).
-    if (this.pollWarm()) {
+    // Same while content holds the frame (a planet whose first bake waits for its bake program, see CubeBaker.hold).
+    // The two are polled separately on purpose: pollWarm() also reports progress to the loading screen.
+    if (this.pollWarm() || this.baker.blocking) {
       this.inFrame = false
       this.raf = requestAnimationFrame(this.frame)
       return

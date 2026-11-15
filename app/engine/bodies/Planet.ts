@@ -75,6 +75,9 @@ export class Planet {
   private onProgress?: (p: PlanetBakeProgress) => void
   private onReady?: () => void
   private job: BakeJob | null = null
+  /** Releases the engine hold taken while the very first bake waits for its programs (see setSpec). */
+  private releaseHold: (() => void) | null = null
+  private disposed = false
   private surfaceTarget: WebGLCubeRenderTarget | null = null
   private cloudTarget: WebGLCubeRenderTarget | null = null
 
@@ -220,10 +223,42 @@ export class Planet {
   /**
    * Shows a planet. A tiny preview is baked synchronously so something is on screen at once,
    * then the full-resolution bake is queued; `onProgress` reports it and `onReady` fires when it lands.
+   *
+   * The first planet of each kind needs its bake programs compiled first (up to a few seconds on Windows, see
+   * shaders/bake.ts). That compile runs in the background and the switch happens when it is done: until then the
+   * previous planet stays on screen, untouched, or, for a planet's very first spec, the engine draws nothing.
    */
   setSpec(spec: PlanetRender, onProgress?: (p: PlanetBakeProgress) => void, onReady?: () => void): void {
-    this.spec = { ...spec }
     const version = ++this.specVersion
+    const typeIndex = PLANET_TYPES.indexOf(spec.type)
+    const passes = TYPE_PARAMS[spec.type].clouds ? [BakePass.Surface, BakePass.Clouds] : [BakePass.Surface]
+    if (passes.every((pass) => this.baker.isReady(pass, typeIndex))) {
+      this.showSpec(spec, version, onProgress, onReady)
+      // An earlier spec may still be waiting with the frame held: this one supersedes it and is now on screen.
+      this.endHold()
+      return
+    }
+    // Nothing on screen yet: a bare sphere (no surface data) would flash before the preview. Hold the frame instead.
+    if (!this.surfaceTarget && !this.releaseHold) this.releaseHold = this.baker.hold()
+    void Promise.all(passes.map((pass) => this.baker.prepare(pass, typeIndex))).then(() => {
+      // A newer setSpec, or dispose(), took over: it owns the hold now.
+      if (version !== this.specVersion || this.disposed) return
+      this.showSpec(spec, version, onProgress, onReady)
+      this.endHold()
+    })
+  }
+
+  /** Lets the engine draw again, if this planet was holding it. */
+  private endHold(): void {
+    this.releaseHold?.()
+    this.releaseHold = null
+  }
+
+  /** setSpec() once the bake programs are compiled: everything here runs synchronously and cheaply. */
+  private showSpec(
+    spec: PlanetRender, version: number, onProgress?: (p: PlanetBakeProgress) => void, onReady?: () => void,
+  ): void {
+    this.spec = { ...spec }
     this.surfaceU.uUseMap.value = 0
     this.surfaceU.uMap.value = null
     this.surfaceU.uUseNight.value = 0
@@ -387,6 +422,8 @@ export class Planet {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.endHold()
     this.job?.cancel()
     this.job = null
     this.surfaceTarget?.dispose()
