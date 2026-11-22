@@ -135,7 +135,12 @@ function closeHow(): void {
 
 // The sheet covers the planet: stop drawing it meanwhile (GPU and battery), and give it back on close.
 watch(howOpen, (open) => engine.value?.setActive(!open))
-watch(engine, (eng) => { if (eng && howOpen.value) eng.setActive(false) })
+// Arriving on `/?how`: pause only once the planet has been drawn. Pausing earlier also stops the loop that waits for
+// the shaders and draws the first frame, and the loading screen, which waits for that frame, would never go away.
+watch(stage, (s) => {
+  const eng = engine.value
+  if (s && eng && howOpen.value) eng.afterNextFrame(() => { if (howOpen.value) eng.setActive(false) })
+})
 
 /** Opens a tool's panel, or closes it when it is already open (the strip buttons are toggles). */
 function toggleTool(tool: PanelTool): void {
