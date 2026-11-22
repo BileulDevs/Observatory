@@ -87,6 +87,7 @@ export default defineNuxtConfig({
       include: [
         'three',
         'three/addons/controls/OrbitControls.js',
+        'three/addons/geometries/RoundedBoxGeometry.js',
         'three/addons/loaders/GLTFLoader.js',
         'three/addons/loaders/DRACOLoader.js',
         'three/addons/postprocessing/EffectComposer.js',
