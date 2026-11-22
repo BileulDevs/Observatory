@@ -27,31 +27,21 @@
   },
   "planetTypes": {
     "ocean": {
-      "short": "Océanique",
-      "a": "Monde",
-      "b": "océanique"
+      "short": "Océanique"
     },
     "arid": {
-      "short": "Aride",
-      "a": "Monde",
-      "b": "aride"
+      "short": "Aride"
     },
     "gas": {
-      "short": "Géante gazeuse",
-      "a": "Géante",
-      "b": "gazeuse"
+      "short": "Géante gazeuse"
     },
     "ice": {
-      "short": "Glacée",
-      "a": "Monde",
-      "b": "glacé"
+      "short": "Glacée"
     }
   },
   "observatory": {
     "title": "Observatoire",
-    "description": "Une planète générée entièrement par code : relief, cratères, nuages, anneaux et atmosphère, sans aucune texture téléchargée.",
-    "eyebrow": "Fiche d'observation",
-    "seed": "graine",
+    "description": "Un monde tiré d'une graine : océans et continents, cratères, bandes d'orages et anneaux, nommé et décrit d'après ce qu'il contient vraiment.",
     "resolution": "Résolution",
     "memory": "Mémoire GPU",
     "bake": "Génération",
@@ -60,20 +50,53 @@
     "render": "Rendu",
     "idle": "veille",
     "fps": "i/s",
-    "note": "Tout est généré par code au chargement : relief, cratères, nuages, anneaux et ciel. Aucune texture téléchargée.",
-    "controls": "Réglages",
-    "style": "Direction",
-    "class": "Classe",
-    "light": "Lumière",
+    "light": "Position du soleil",
     "relief": "Relief",
-    "quality": "Qualité",
     "q512": "Mobile · 512",
     "q1024": "Haute · 1024",
     "q2048": "Ultra · 2048",
-    "reseed": "Nouvelle graine",
-    "spin": "Rotation",
-    "spinStopped": "Rotation (arrêtée)",
-    "hint": "Glisser pour orbiter · molette pour s'approcher"
+    "reseed": "Nouveau monde",
+    "hint": "Faites glisser pour tourner, molette pour zoomer.",
+    "worldLabel": "Ce monde",
+    "kindLine": "{kind} · graine {seed}",
+    "kinds": {
+      "ocean": "Monde océanique",
+      "arid": "Monde aride",
+      "gas": "Géante gazeuse",
+      "ice": "Monde glacé"
+    },
+    "about": {
+      "ocean": "Une mer ouverte, rompue par des continents et des chaînes de montagnes, sous un ciel qui ne cesse de bouger.",
+      "arid": "Des plaines sèches entaillées de canyons et criblées de cratères de toutes tailles.",
+      "gas": "Aucune surface : des bandes de vent cisaillées par des courants-jets, marquées de tempêtes, au milieu d'anneaux.",
+      "ice": "Une croûte gelée fendue de longues doubles crêtes, avec entre elles un terrain chaotique et brisé."
+    },
+    "facts": {
+      "ocean": "L'océan couvre {ocean} % de la surface. La glace en occupe {ice} %, et les nuages en voilent environ {cloud} %.",
+      "arid": "Les plus grands cratères couvrent {cratered} % du sol. Le givre en couvre {ice} %.",
+      "gas": "Les tempêtes couvrent {storm} % du sommet des nuages.",
+      "ice": "Crêtes et terrain brisé traversent {ridged} % de la croûte."
+    },
+    "howLink": "Comment c’est fait",
+    "tools": {
+      "label": "Outils",
+      "class": "Classe",
+      "style": "Rendu",
+      "sun": "Soleil",
+      "relief": "Relief",
+      "quality": "Qualité",
+      "recenter": "Recentrer",
+      "pause": "Pause",
+      "play": "Lecture"
+    },
+    "panels": {
+      "class": "Classe",
+      "style": "Rendu",
+      "sun": "Soleil",
+      "relief": "Relief",
+      "quality": "Qualité",
+      "classNote": "Chaque classe a son propre générateur de relief."
+    }
   },
   "systems": {
     "title": "Systèmes solaires",
@@ -181,7 +204,7 @@
     "mapsNote": "Cartes équirectangulaires du domaine public, redimensionnées en 2048 × 1024.",
     "data": "Données",
     "fonts": "Polices",
-    "fontsNote": "Instrument Serif, Geist et Geist Mono, via Google Fonts (SIL Open Font License).",
+    "fontsNote": "Big Shoulders, Barlow et Chivo Mono, via Google Fonts (SIL Open Font License).",
     "code": "Tout le reste (planètes procédurales, atmosphères, anneaux, étoiles, ciel, objets du catalogue) est généré par code.",
     "objects": "Objets de l'espace",
     "objectsNote": "Les données de chaque objet viennent des pages citées sur sa fiche (Wikipédia en anglais, qui renvoie aux publications d'origine). Les nébuleuses, galaxies et simulations de trous noirs sont générées par code ; seules Pluton et Cérès utilisent une carte réelle.",
@@ -551,12 +574,12 @@
   "boot": {
     "progress": "{p} %",
     "steps": {
-      "fonts": "Polices",
-      "engine": "Moteur 3D (Three.js)",
-      "gpu": "Carte graphique",
-      "sky": "Ciel étoilé",
-      "shaders": "Compilation des shaders",
-      "stage": "Première image de la scène"
+      "fonts": "Chargement des polices",
+      "engine": "Chargement du moteur 3D",
+      "gpu": "Examen de la carte graphique",
+      "sky": "Tracé du ciel",
+      "shaders": "Préparation des shaders",
+      "stage": "Tracé du premier monde"
     }
   },
   "exploits": {
@@ -606,5 +629,40 @@
       "title": "Une avarie à bord.",
       "body": "Quelque chose s'est mal passé pendant le chargement de cette page. Réessaie depuis l'observatoire."
     }
+  },
+  "how": {
+    "title": "Comment c’est fait",
+    "description": "Comment l'Observatory génère un monde à partir d'un seul nombre, le précalcule et le dessine dans votre navigateur.",
+    "lead": "Chaque monde de la page d'accueil est calculé dans votre navigateur à partir d'un seul nombre, sa graine. Rien n'y est dessiné à la main ni téléchargé.",
+    "sections": {
+      "seed": {
+        "title": "D'une graine à un monde",
+        "body": "La graine alimente un petit générateur aléatoire déterministe : le même nombre donne toujours le même monde, sur tous les appareils. Elle lui donne aussi son nom."
+      },
+      "relief": {
+        "title": "Le relief",
+        "body": "Les continents viennent d'un bruit en couches déformé par un autre bruit, les chaînes de montagnes d'un bruit « en crêtes » qui n'ajoute du détail que sur les sommets. Les mondes arides ajoutent des cratères en six tailles, les mondes glacés les doubles crêtes d'une croûte fendue, les géantes gazeuses des bandes cisaillées par les courants-jets et quelques tempêtes."
+      },
+      "bake": {
+        "title": "Précalculé une fois, dessiné à chaque image",
+        "body": "Ces champs coûtent cher : la carte graphique les calcule une seule fois dans des cubemaps, d'abord un petit aperçu, puis la pleine résolution, bande par bande, pour que la page ne gèle jamais. Chaque image ne fait ensuite que lire ces textures."
+      },
+      "light": {
+        "title": "Lumière et atmosphère",
+        "body": "L'atmosphère est calculée en lançant des rayons à travers une fine coquille qui diffuse davantage le bleu que le rouge : d'où le limbe lumineux et le terminateur chaud. Les nuages ont leur propre coquille et projettent leur ombre au sol."
+      },
+      "real": {
+        "title": "Les mondes réels",
+        "body": "Les pages Systèmes solaires montrent aussi des corps réels. Ceux-là utilisent des cartes du domaine public de la NASA et de l’USGS, listées dans les crédits."
+      },
+      "render": {
+        "title": "Le rendu",
+        "body": "La scène n'est redessinée que lorsque quelque chose bouge. La résolution est choisie d'après ce que l'appareil annonce pouvoir gérer. Réalisé avec Nuxt, Vue, TypeScript, Three.js et GLSL."
+      }
+    },
+    "back": "Retour à l'observatoire",
+    "credits": "Crédits",
+    "pullHint": "Remontez au-delà du haut pour revenir à l’observatoire",
+    "close": "Fermer"
   }
 }
