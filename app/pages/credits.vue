@@ -23,7 +23,7 @@ const MAPS = [
   { body: { fr: 'Cérès', en: 'Ceres' }, credit: 'NASA / JPL-Caltech / UCLA / MPS / DLR / IDA — Dawn FC global mosaic (USGS)', url: 'https://astrogeology.usgs.gov/search/map/Ceres/Dawn/DLR/FramingCamera/Ceres_Dawn_FC_DLR_global_59ppd_Feb2016' },
 ]
 
-useSeoMeta({ title: () => t('credits.title'), description: () => t('credits.description') })
+usePageMeta({ title: () => t('credits.title'), description: () => t('credits.description') })
 </script>
 
 <template>

@@ -226,7 +226,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-useSeoMeta({
+usePageMeta({
   title: () => {
     if (inspectedMoon.value && inspected.value) return `${tl(inspectedMoon.value.name)} · ${tl(inspected.value.name)} · ${tl(system.name)}`
     return inspected.value ? `${tl(inspected.value.name)} · ${tl(system.name)}` : tl(system.name)

@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
 })
 
-useSeoMeta({
+usePageMeta({
   title: () => t('observatory.title'),
   description: () => t('observatory.description'),
 })

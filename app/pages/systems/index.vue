@@ -55,7 +55,7 @@ function meta(s: PlanetarySystem): string {
   return `${where} · ${s.star.spectralType} · ${t('systems.planets', s.planets.length)}`
 }
 
-useSeoMeta({ title: () => t('systems.title'), description: () => t('systems.description') })
+usePageMeta({ title: () => t('systems.title'), description: () => t('systems.description') })
 </script>
 
 <template>

@@ -141,7 +141,7 @@ const tipLabel = computed(() => {
   return s.distLy !== null ? t('constellations.tooltip', { name: label(s), d: num(s.distLy, 0) }) : label(s)
 })
 
-useSeoMeta({
+usePageMeta({
   title: () => `${tl(summary.name)} · ${t('constellations.title')}`,
   description: () => t('constellations.pageDescription', { name: tl(summary.name) }),
 })

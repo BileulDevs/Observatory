@@ -124,7 +124,7 @@ async function share(): Promise<void> {
   }
 }
 
-useSeoMeta({ title: () => t('creator.title'), description: () => t('creator.description') })
+usePageMeta({ title: () => t('creator.title'), description: () => t('creator.description') })
 </script>
 
 <template>

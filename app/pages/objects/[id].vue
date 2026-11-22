@@ -132,7 +132,7 @@ watch(wide, (w) => stage.value?.setLayout(w ? LAYOUT.wide : LAYOUT.narrow))
 const backTo = localePath({ name: 'objects', query: object.category === OBJECT_CATEGORIES[0] ? {} : { c: object.category } })
 const linkTo = (id: string) => localePath({ name: 'objects-id', params: { id } })
 
-useSeoMeta({
+usePageMeta({
   title: () => `${tl(object.name)} · ${t(`objects.categories.${object.category}.name`)}`,
   description: () => tl(object.description),
 })

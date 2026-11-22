@@ -44,7 +44,7 @@ function categoryLink(c: ObjectCategory) {
   return localePath({ name: 'objects', query: c === OBJECT_CATEGORIES[0] ? {} : { c } })
 }
 
-useSeoMeta({ title: () => t('objects.title'), description: () => t('objects.description') })
+usePageMeta({ title: () => t('objects.title'), description: () => t('objects.description') })
 </script>
 
 <template>
