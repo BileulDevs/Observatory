@@ -27,31 +27,21 @@
   },
   "planetTypes": {
     "ocean": {
-      "short": "Oceanic",
-      "a": "Oceanic",
-      "b": "world"
+      "short": "Oceanic"
     },
     "arid": {
-      "short": "Arid",
-      "a": "Arid",
-      "b": "world"
+      "short": "Arid"
     },
     "gas": {
-      "short": "Gas giant",
-      "a": "Gas",
-      "b": "giant"
+      "short": "Gas giant"
     },
     "ice": {
-      "short": "Icy",
-      "a": "Icy",
-      "b": "world"
+      "short": "Icy"
     }
   },
   "observatory": {
     "title": "Observatory",
-    "description": "A planet generated entirely in code: terrain, craters, clouds, rings and atmosphere, with no downloaded texture.",
-    "eyebrow": "Observation sheet",
-    "seed": "seed",
+    "description": "A world drawn from a seed: oceans and continents, craters, storm belts and rings, named and described from what is actually there.",
     "resolution": "Resolution",
     "memory": "GPU memory",
     "bake": "Generation",
@@ -60,20 +50,53 @@
     "render": "Rendering",
     "idle": "idle",
     "fps": "fps",
-    "note": "Everything is generated in code at load time: terrain, craters, clouds, rings and sky. No texture is downloaded.",
-    "controls": "Controls",
-    "style": "Style",
-    "class": "Class",
-    "light": "Light",
+    "light": "Sun position",
     "relief": "Relief",
-    "quality": "Quality",
     "q512": "Mobile · 512",
     "q1024": "High · 1024",
     "q2048": "Ultra · 2048",
-    "reseed": "New seed",
-    "spin": "Rotation",
-    "spinStopped": "Rotation (stopped)",
-    "hint": "Drag to orbit · scroll to zoom"
+    "reseed": "New world",
+    "hint": "Drag to rotate, scroll to zoom.",
+    "worldLabel": "This world",
+    "kindLine": "{kind} · seed {seed}",
+    "kinds": {
+      "ocean": "Ocean world",
+      "arid": "Arid world",
+      "gas": "Gas giant",
+      "ice": "Ice world"
+    },
+    "about": {
+      "ocean": "Open water broken by continents and mountain chains, under weather that keeps moving.",
+      "arid": "Dry plains cut by deep canyons and pitted by craters of every size.",
+      "gas": "No surface at all: bands of wind sheared by jets, marked by storms, inside a system of rings.",
+      "ice": "A frozen crust cracked into long double ridges, with broken, chaotic ground between them."
+    },
+    "facts": {
+      "ocean": "Ocean covers {ocean}% of the surface. Ice holds {ice}%, and cloud veils about {cloud}%.",
+      "arid": "The largest craters cover {cratered}% of the ground. Frost covers {ice}%.",
+      "gas": "Storms cover {storm}% of the cloud tops.",
+      "ice": "Ridges and broken ground cross {ridged}% of the crust."
+    },
+    "howLink": "How it’s made",
+    "tools": {
+      "label": "Tools",
+      "class": "Class",
+      "style": "Rendering",
+      "sun": "Sun",
+      "relief": "Relief",
+      "quality": "Quality",
+      "recenter": "Recenter",
+      "pause": "Pause",
+      "play": "Play"
+    },
+    "panels": {
+      "class": "Class",
+      "style": "Rendering",
+      "sun": "Sun",
+      "relief": "Relief",
+      "quality": "Quality",
+      "classNote": "Each class has its own relief generator."
+    }
   },
   "systems": {
     "title": "Planetary systems",
@@ -181,7 +204,7 @@
     "mapsNote": "Public-domain equirectangular maps, resized to 2048 × 1024.",
     "data": "Data",
     "fonts": "Fonts",
-    "fontsNote": "Instrument Serif, Geist and Geist Mono, via Google Fonts (SIL Open Font License).",
+    "fontsNote": "Big Shoulders, Barlow and Chivo Mono, via Google Fonts (SIL Open Font License).",
     "code": "Everything else (procedural planets, atmospheres, rings, stars, sky, catalogue objects) is generated in code.",
     "objects": "Space objects",
     "objectsNote": "Each object's figures come from the pages cited on its sheet (English Wikipedia, which links to the original publications). The nebulae, galaxies and black-hole simulations are generated in code; only Pluto and Ceres use a real map.",
@@ -551,12 +574,12 @@
   "boot": {
     "progress": "{p}%",
     "steps": {
-      "fonts": "Fonts",
-      "engine": "3D engine (Three.js)",
-      "gpu": "Graphics card",
-      "sky": "Starry sky",
-      "shaders": "Compiling shaders",
-      "stage": "First frame of the scene"
+      "fonts": "Loading fonts",
+      "engine": "Loading the 3D engine",
+      "gpu": "Checking the graphics card",
+      "sky": "Drawing the sky",
+      "shaders": "Preparing the shaders",
+      "stage": "Drawing the first world"
     }
   },
   "exploits": {
@@ -606,5 +629,40 @@
       "title": "Something broke on board.",
       "body": "Something went wrong while loading this page. Try again from the observatory."
     }
+  },
+  "how": {
+    "title": "How it’s made",
+    "description": "How the Observatory generates a world from a single number, bakes it and draws it in your browser.",
+    "lead": "Every world on the home page is computed in your browser from a single number, its seed. Nothing about it is drawn by hand or downloaded.",
+    "sections": {
+      "seed": {
+        "title": "From a seed to a world",
+        "body": "The seed feeds a small deterministic random generator, so the same number always gives the same world, on every device. It also gives the world its name."
+      },
+      "relief": {
+        "title": "Relief",
+        "body": "Continents come from layered noise bent by more noise; mountain chains from ridged noise that only grows detail on crests. Arid worlds add craters in six size classes, ice worlds the double ridges of cracked crusts, gas giants bands sheared by jets and a few storms."
+      },
+      "bake": {
+        "title": "Baked once, drawn every frame",
+        "body": "These fields are expensive, so the graphics card evaluates them once into cube maps: a small preview first, then the full resolution, strip by strip, so the page never freezes. Each frame then only reads from those maps."
+      },
+      "light": {
+        "title": "Light and air",
+        "body": "The atmosphere is computed by marching rays through a thin shell that scatters blue light more than red, which gives the bright limb and the warm terminator. Clouds sit on their own shell and cast shadows on the ground."
+      },
+      "real": {
+        "title": "Real worlds",
+        "body": "The Planetary systems pages also show real bodies. Those use public-domain maps from NASA and the USGS, listed on the credits page."
+      },
+      "render": {
+        "title": "Rendering",
+        "body": "The scene is only redrawn when something moves. The resolution is chosen from what the device reports it can handle. Built with Nuxt, Vue, TypeScript, Three.js and GLSL."
+      }
+    },
+    "back": "Back to the observatory",
+    "credits": "Credits",
+    "pullHint": "Scroll up past the top to return to the observatory",
+    "close": "Close"
   }
 }

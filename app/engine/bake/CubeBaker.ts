@@ -178,6 +178,23 @@ export class CubeBaker {
     return this.holds > 0
   }
 
+  /**
+   * Reads every face of a baked cube back to the CPU, without stalling (pixel-pack buffer + fence). Faces in
+   * three's order (+X, −X, +Y, −Y, +Z, −Z), RGBA, rows of `target.width`. Half-float targets give raw half
+   * floats (decode with DataUtils.fromHalfFloat), byte targets give 0–255.
+   * The six reads are issued before the first await: the target may be disposed right after this call returns
+   * (a preview replaced by the full bake), the data is already copied.
+   */
+  readFaces(target: WebGLCubeRenderTarget): Promise<(Uint16Array | Uint8Array)[]> {
+    const size = target.width
+    const half = target.texture.type === HalfFloatType
+    const reads = Array.from({ length: 6 }, (_, face) => {
+      const buffer = half ? new Uint16Array(size * size * 4) : new Uint8Array(size * size * 4)
+      return this.renderer.readRenderTargetPixelsAsync(target, 0, 0, size, size, buffer, face) as Promise<Uint16Array | Uint8Array>
+    })
+    return Promise.all(reads)
+  }
+
   /** Queues a progressive bake of several targets; `onDone` fires once every step has run. */
   enqueue(
     items: { target: WebGLCubeRenderTarget; pass: BakePass }[],

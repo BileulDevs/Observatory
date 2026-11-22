@@ -8,6 +8,7 @@ import { mulberry32 } from '../core/random'
 import { blendLook, createLook, type Look } from '../look'
 import { loadColorMap } from '../core/textures'
 import { PLANET_TYPES, TYPE_PARAMS, type ArtStyle, type PlanetRender } from '../presets'
+import { measureSurface, type SurfaceFacts } from './surfaceFacts'
 import { ATMO_FRAG } from '../shaders/atmosphere'
 import { CLOUD_FRAG } from '../shaders/clouds'
 import { RING_FRAG, RING_VERT } from '../shaders/ring'
@@ -38,6 +39,12 @@ export interface PlanetBuildOptions {
   atmosphereSteps: number
   /** Keep the instant preview bake only (thumbnails): no full-resolution job is queued. */
   previewOnly?: boolean
+  /**
+   * Called with measured facts (ocean share, ice, clouds...) for each new spec, read back from its preview bake.
+   * Leave out when nothing displays them: the readback is cheap (a few hundred kB once per spec, no stall), but a
+   * catalogue of thumbnails has no use for it.
+   */
+  onFacts?: (facts: SurfaceFacts) => void
 }
 
 /** Progress of the full-resolution bake, for loading UI. */
@@ -78,6 +85,7 @@ export class Planet {
   /** Releases the engine hold taken while the very first bake waits for its programs (see setSpec). */
   private releaseHold: (() => void) | null = null
   private disposed = false
+  private readonly onFacts?: (facts: SurfaceFacts) => void
   private surfaceTarget: WebGLCubeRenderTarget | null = null
   private cloudTarget: WebGLCubeRenderTarget | null = null
 
@@ -184,6 +192,7 @@ export class Planet {
     this.baker = baker
     this.bakeRes = opts.bakeRes
     this.previewOnly = !!opts.previewOnly
+    this.onFacts = opts.onFacts
 
     this.surface = new Mesh(
       new SphereGeometry(1, 192, 128),
@@ -248,6 +257,18 @@ export class Planet {
     })
   }
 
+  /**
+   * Reads the preview bake back and reports what the world looks like. The preview is enough for percentages
+   * (128² per face) and exists for every spec, so no extra bake is needed. Facts for a superseded spec are dropped.
+   */
+  private measure(spec: PlanetRender, version: number, surface: WebGLCubeRenderTarget, clouds: WebGLCubeRenderTarget | null): void {
+    const reads = [this.baker.readFaces(surface), clouds ? this.baker.readFaces(clouds) : Promise.resolve(null)] as const
+    Promise.all(reads).then(([s, c]) => {
+      if (version !== this.specVersion || this.disposed) return
+      this.onFacts?.(measureSurface(spec.type, surface.width, s as Uint16Array[], c as Uint8Array[] | null))
+    }).catch((err) => console.warn('[planet] could not measure the surface; the description falls back to its class', err))
+  }
+
   /** Lets the engine draw again, if this planet was holding it. */
   private endHold(): void {
     this.releaseHold?.()
@@ -291,6 +312,7 @@ export class Planet {
       previewClouds = this.baker.createTarget(PREVIEW_RES, BakePass.Clouds)
       this.baker.bakeNow(previewClouds, BakePass.Clouds, typeIndex, seed)
     }
+    if (this.onFacts) this.measure(spec, version, preview, previewClouds)
     this.swapTargets(preview, previewClouds)
     this.applyLook()
     if (this.previewOnly) this.onReady?.()

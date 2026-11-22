@@ -63,7 +63,9 @@ export default defineNuxtConfig({
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap',
+          // "Mission" kit: Big Shoulders (condensed display, titles), Barlow (text and interface), Chivo Mono (figures).
+          // Big Shoulders is the current Google Fonts family; it replaced "Big Shoulders Display" in 2025.
+          href: 'https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@500..900&family=Barlow:wght@400;500;600&family=Chivo+Mono:wght@400;500&display=swap',
         },
       ],
     },
@@ -107,6 +109,6 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     // Featured systems are reached by the crawler from the index; any other generated seed is rendered client-side.
-    prerender: { crawlLinks: true, routes: ['/', '/exploits', '/exploits/apollo-11', '/exploits/rosetta', ...objectRoutes(), ...constellationRoutes()] },
+    prerender: { crawlLinks: true, routes: ['/', '/how-its-made', '/exploits', '/exploits/apollo-11', '/exploits/rosetta', ...objectRoutes(), ...constellationRoutes()] },
   },
 })
