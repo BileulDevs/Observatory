@@ -10,7 +10,7 @@ const pageUrl = computed(() => `${siteUrl}${route.path === '/' ? '/' : route.pat
 
 useHead(() => ({
   htmlAttrs: { lang: i18nHead.value.htmlAttrs?.lang },
-  titleTemplate: (title?: string) => (title ? `${title} · ${t('site.name')}` : `${t('site.name')} — ${t('site.tagline')}`),
+  titleTemplate: (title?: string) => (title ? `${title} · ${t('site.name')}` : `${t('site.name')} · ${t('site.tagline')}`),
   link: [...(i18nHead.value.link ?? []), { rel: 'canonical', href: pageUrl.value }],
   meta: [...(i18nHead.value.meta ?? [])],
 }))

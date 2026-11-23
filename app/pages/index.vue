@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
 })
 
-// No page title: the home is the site itself, and the template then gives "Observatory — <tagline>". Its own name
+// No page title: the home is the site itself, and the template then gives "Observatory · <tagline>". Its own name
 // would come out as "Observatory · Observatory".
 usePageMeta({ description: () => t('observatory.description') })
 </script>
