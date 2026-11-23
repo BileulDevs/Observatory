@@ -22,7 +22,8 @@ function constellationRoutes(): string[] {
 }
 
 /** Production origin. Used for canonical URLs, hreflang links and Open Graph. */
-const SITE_URL = 'https://observatoire.example' // ← replace with the final domain
+// No trailing slash: paths are appended to it ("/og.jpg"). Netlify address for now; change it with the final domain.
+const SITE_URL = 'https://space-observatory.netlify.app'
 
 export default defineNuxtConfig({
   ssr: true,
