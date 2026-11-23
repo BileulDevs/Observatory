@@ -10,7 +10,8 @@
     "preview": "node tools/preview.mjs",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
-    "check:head": "node tools/check-head.mjs"
+    "check:head": "node tools/check-head.mjs",
+    "test": "node --test \"tests/*.test.ts\""
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.6.0",

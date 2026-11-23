@@ -10,6 +10,7 @@ import { ART_STYLES, PLANET_TYPES, STYLE_PARAMS, type ArtStyle, type PlanetType 
 import type { SurfaceFacts } from '~/engine/bodies/surfaceFacts'
 import type { ObservatoryStage as ObservatoryStageType } from '~/engine/stages/ObservatoryStage'
 import { worldName } from '~/utils/worldName'
+import { DEFAULT_WORLD, MAX_SEED, worldFromQuery, worldToQuery } from '~/utils/worldLink'
 
 /**
  * Planet placement, as viewport fractions (see Engine.setViewShift), per layout. roomy and medium: the tool strip
@@ -26,10 +27,10 @@ const SHIFT = {
 const ROOMY_QUERY = '(min-width: 1180px)'
 /** Bake sizes offered by the quality tool. Memory grows with the square (see the debug readout). */
 const QUALITY_OPTIONS = [512, 1024, 2048] as const
-/** Seed shown on first visit: a world that reads well (continents and oceans both visible). */
-const DEFAULT_SEED = 2718
-/** Largest seed drawn by "New world". Seeds stay short enough to read aloud and type. */
-const MAX_SEED = 9999
+/** How long the share button says "Link copied" before going back to its label, ms. */
+const SHARE_FEEDBACK_MS = 2500
+/** The world's own URL parameters (see worldLink.ts); every other parameter (how, debug) is left as it is. */
+const WORLD_KEYS = ['seed', 'type', 'style'] as const
 /** How often the debug readout polls render stats, ms. */
 const STATS_INTERVAL = 500
 /** Clouds are baked at half the surface size (see Planet.ts), RGBA8 vs RGBA16F, both with mipmaps (×4/3). */
@@ -47,9 +48,11 @@ const { engine } = useSpace()
 const route = useRoute()
 const router = useRouter()
 
-const style = ref<ArtStyle>('natural')
-const type = ref<PlanetType>('ocean')
-const seed = ref(DEFAULT_SEED)
+// The default world, not the URL's: the prerendered HTML shows the default world, and the first client render must
+// match it. The URL's world is applied on mount (below), under the loading screen.
+const style = ref<ArtStyle>(DEFAULT_WORLD.style)
+const type = ref<PlanetType>(DEFAULT_WORLD.type)
+const seed = ref(DEFAULT_WORLD.seed)
 const relief = ref(1)
 const sunAz = ref(STYLE_PARAMS.natural.sunAz)
 const spin = ref(true)
@@ -70,6 +73,50 @@ const name = computed(() => worldName(seed.value))
 const wide = useWideLayout()
 const roomy = useWideLayout(ROOMY_QUERY)
 const shift = computed(() => (roomy.value ? SHIFT.roomy : wide.value ? SHIFT.medium : SHIFT.narrow))
+
+/** 'copied' or 'failed' for a moment after the share button is used, else null. */
+const shareState = ref<'copied' | 'failed' | null>(null)
+let shareTimer: ReturnType<typeof setTimeout> | undefined
+
+// Registered before useStage on purpose: mount hooks run in order, so the stage is built with the URL's world.
+onMounted(() => {
+  const world = worldFromQuery(route.query)
+  seed.value = world.seed
+  type.value = world.type
+  style.value = world.style
+  // Also rewrites a link with invalid values (`?seed=abc`) to the world actually shown.
+  syncUrl()
+})
+
+/** Keeps the URL on the world shown. Replace, not push: trying worlds must not fill the Back button's history. */
+function syncUrl(): void {
+  const world = worldToQuery({ seed: seed.value, type: type.value, style: style.value })
+  const rest = Object.fromEntries(Object.entries(route.query).filter(([key]) => !(WORLD_KEYS as readonly string[]).includes(key)))
+  const query = { ...rest, ...world }
+  if (router.resolve({ query }).fullPath !== route.fullPath) void router.replace({ query })
+}
+watch([seed, type, style], syncUrl)
+
+/** Shares this world's link: the share sheet on touch devices, else the clipboard. */
+async function shareWorld(): Promise<void> {
+  const path = router.resolve({ path: route.path, query: worldToQuery({ seed: seed.value, type: type.value, style: style.value }) }).fullPath
+  const url = `${window.location.origin}${path}`
+  try {
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+      await navigator.share({ title: name.value, url })
+      return
+    }
+    await navigator.clipboard.writeText(url)
+    shareState.value = 'copied'
+  } catch (err) {
+    // Closing the share sheet rejects with AbortError: the visitor changed their mind, nothing failed.
+    if (err instanceof DOMException && err.name === 'AbortError') return
+    console.error('[observatory] sharing the world failed', err)
+    shareState.value = 'failed'
+  }
+  clearTimeout(shareTimer)
+  shareTimer = setTimeout(() => { shareState.value = null }, SHARE_FEEDBACK_MS)
+}
 
 const stage = useStage(async (eng) => {
   quality.value = Math.min(eng.quality.bakeRes, 2048)
@@ -182,6 +229,7 @@ onBeforeUnmount(() => {
   // Leaving the page with the sheet open (a link inside it): the next page's 3D must run.
   if (howOpen.value) engine.value?.setActive(true)
   clearInterval(timer)
+  clearTimeout(shareTimer)
   window.removeEventListener('keydown', onKey)
 })
 
@@ -204,7 +252,13 @@ usePageMeta({
           <p class="band__class">{{ $t(`observatory.about.${type}`) }}</p>
           <NuxtLink :to="howLink" class="band__link">{{ $t('observatory.howLink') }}</NuxtLink>
         </div>
-        <button type="button" class="new-world" @click="reseed"><ToolIcon name="dice" />{{ $t('observatory.reseed') }}</button>
+        <div class="band__actions">
+          <button type="button" class="new-world" @click="reseed"><ToolIcon name="dice" />{{ $t('observatory.reseed') }}</button>
+          <button type="button" class="share" @click="shareWorld">
+            <ToolIcon name="link" />
+            <span aria-live="polite">{{ shareState === 'copied' ? $t('observatory.shareCopied') : shareState === 'failed' ? $t('observatory.shareFailed') : $t('observatory.share') }}</span>
+          </button>
+        </div>
       </section>
 
       <div class="tools interactive">
@@ -303,6 +357,9 @@ usePageMeta({
 /* Fixed width: the label changes length with the language, the button must not. */
 .new-world { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; width: 12.5rem; min-height: 48px; margin-bottom: 0.4rem; padding: 0 1rem; border: 0; border-radius: 2px; background: var(--accent); color: var(--bg); font: 600 0.9375rem/1 var(--font-sans); cursor: pointer; white-space: nowrap; }
 .new-world:hover { background: #ff8559; }
+.band__actions { display: grid; justify-items: center; gap: 0.25rem; }
+.share { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.75rem; border: 0; background: none; color: var(--muted); font: 500 0.875rem/1 var(--font-sans); cursor: pointer; white-space: nowrap; }
+.share:hover { color: var(--fg); }
 
 /* Tool strip on the right edge, vertically centred; the open tool's panel sits to its left. */
 .tools { position: absolute; right: var(--gutter); top: 50%; transform: translateY(-50%); display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 0.75rem; }
@@ -357,7 +414,7 @@ usePageMeta({
   .band__name { font-size: clamp(3.5rem, 8vw, 6rem); }
   .band { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
   .band__class { display: none; }
-  .new-world { grid-column: 2; justify-self: start; }
+  .band__actions { grid-column: 2; justify-self: start; justify-items: start; }
 }
 
 /*

@@ -12,6 +12,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run generate   # static site in .output/public
 npm run typecheck
+npm test           # unit tests (Node's built-in runner, tests/*.test.ts)
 npm run check:head # after generate: every prerendered page has its title, description, Open Graph and <h1>
 ```
 
