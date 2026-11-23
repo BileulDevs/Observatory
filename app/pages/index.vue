@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
 })
 
-// No page title: the home is the site itself, and the template then gives "Observatory — <tagline>". Its own name
+// No page title: the home is the site itself, and the template then gives "Observatory · <tagline>". Its own name
 // would come out as "Observatory · Observatory".
 usePageMeta({ description: () => t('observatory.description') })
 </script>
@@ -357,7 +357,7 @@ usePageMeta({ description: () => t('observatory.description') })
 .band__link:hover { color: var(--fg); }
 /* Fixed width: the label changes length with the language, the button must not. */
 .new-world { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; width: 12.5rem; min-height: 48px; margin-bottom: 0.4rem; padding: 0 1rem; border: 0; border-radius: 2px; background: var(--accent); color: var(--bg); font: 600 0.9375rem/1 var(--font-sans); cursor: pointer; white-space: nowrap; }
-.new-world:hover { background: #ff8559; }
+.new-world:hover { background: var(--accent-hover); }
 .band__actions { display: grid; justify-items: center; gap: 0.25rem; }
 .share { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.75rem; border: 0; background: none; color: var(--muted); font: 500 0.875rem/1 var(--font-sans); cursor: pointer; white-space: nowrap; }
 .share:hover { color: var(--fg); }

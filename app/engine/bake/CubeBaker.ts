@@ -2,6 +2,7 @@ import {
   BackSide, CubeCamera, HalfFloatType, LinearFilter, LinearMipmapLinearFilter, Mesh, Scene, ShaderMaterial,
   SphereGeometry, UnsignedByteType, Vector3, WebGLCubeRenderTarget, type Camera, type WebGLRenderer,
 } from 'three'
+import { compileAndWait } from '../core/compile'
 import { PLANET_TYPES, type PlanetType } from '../presets'
 import { BAKE_FRAG, BAKE_VERT } from '../shaders/bake'
 
@@ -275,12 +276,9 @@ export class CubeBaker {
     const previous = this.renderer.getRenderTarget()
     this.renderer.setRenderTarget(this.placeholder)
     const camera = this.cubeCamera.children[0] as Camera
-    const compiled = this.renderer.compileAsync(program.scene, camera)
+    const compiled = compileAndWait(this.renderer, program.scene, camera, program.scene, COMPILE_TIMEOUT_MS)
     this.renderer.setRenderTarget(previous)
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => { timer = setTimeout(() => resolve('timeout'), COMPILE_TIMEOUT_MS) })
-    program.compiled = Promise.race([compiled.then(() => 'done' as const), timeout]).then((outcome) => {
-      clearTimeout(timer)
+    program.compiled = compiled.then((outcome) => {
       if (outcome === 'timeout') console.warn('[bake] program', variant, 'still compiling after', COMPILE_TIMEOUT_MS, 'ms; continuing')
       program.ready = true
       this.wake()

@@ -7,7 +7,7 @@ export function usePageMeta(meta: { title?: () => string; description: () => str
   const { t } = useI18n()
   const fullTitle = () => {
     const title = meta.title?.()
-    return title ? `${title} · ${t('site.name')}` : `${t('site.name')} — ${t('site.tagline')}`
+    return title ? `${title} · ${t('site.name')}` : `${t('site.name')} · ${t('site.tagline')}`
   }
   useSeoMeta({
     title: () => meta.title?.() ?? '',

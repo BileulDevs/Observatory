@@ -1,7 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#05070d"/>
-  <circle cx="32" cy="32" r="9" fill="#f0a062"/>
-  <ellipse cx="32" cy="32" rx="22" ry="9" fill="none" stroke="#76c7ff" stroke-width="2" opacity="0.8" transform="rotate(-22 32 32)"/>
-  <circle cx="51" cy="24" r="2.4" fill="#76c7ff"/>
-  <circle cx="14" cy="44" r="1.6" fill="#d8e2ee"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Pixel-art telescope on its tripod, one star. 16 × 16 grid: every rect is whole pixels, drawn crisp. -->
+  <rect width="16" height="16" rx="3" fill="#0a0c10"/>
+  <g shape-rendering="crispEdges">
+    <!-- Star (accent) -->
+    <rect x="3" y="2" width="1" height="1" fill="#ff4d5a"/>
+    <!-- Tube, stepping up to the right -->
+    <rect x="4" y="9" width="2" height="2" fill="#cdd0cc"/>
+    <rect x="6" y="8" width="2" height="2" fill="#cdd0cc"/>
+    <rect x="8" y="7" width="2" height="2" fill="#f1f1ec"/>
+    <rect x="10" y="6" width="2" height="2" fill="#f1f1ec"/>
+    <!-- Dew shield and objective at the front -->
+    <rect x="12" y="4" width="2" height="3" fill="#f1f1ec"/>
+    <rect x="14" y="4" width="1" height="3" fill="#7ea6d8"/>
+    <!-- Eyepiece at the back -->
+    <rect x="3" y="11" width="1" height="1" fill="#949aa3"/>
+    <!-- Mount and tripod -->
+    <rect x="8" y="9" width="1" height="5" fill="#949aa3"/>
+    <rect x="7" y="11" width="1" height="1" fill="#949aa3"/>
+    <rect x="6" y="12" width="1" height="1" fill="#949aa3"/>
+    <rect x="5" y="13" width="1" height="1" fill="#949aa3"/>
+    <rect x="9" y="11" width="1" height="1" fill="#949aa3"/>
+    <rect x="10" y="12" width="1" height="1" fill="#949aa3"/>
+    <rect x="11" y="13" width="1" height="1" fill="#949aa3"/>
+  </g>
 </svg>

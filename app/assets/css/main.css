@@ -1,6 +1,6 @@
 /*
  * Global tokens and base styles. Components keep their own scoped styles and only read these variables.
- * Identity ("Mission" kit): cold black, off-white, one signal orange and a secondary steel blue. Condensed
+ * Identity ("Mission" kit): cold black, off-white, one signal red and a secondary steel blue. Condensed
  * display capitals for names and titles, a plain sans for everything read, a monospace for figures only.
  */
 
@@ -12,8 +12,10 @@
   /* Darkest grey that still passes WCAG AA (4.5:1, here 4.9:1) for small text on --bg. Do not go darker. */
   --faint: #7a8089;
   --line: rgb(241 241 236 / 0.14);
-  /* Signal orange, 6.9:1 on --bg; dark text on it (buttons) reads at 6.9:1 too. */
-  --accent: #ff6b3d;
+  /* Signal red, 6.0:1 on --bg; dark text on it (buttons) reads at 6.0:1 too. Warm against the cold steel blue. */
+  --accent: #ff4d5a;
+  /* Hover shade of the accent fill: lighter, 7.1:1. */
+  --accent-hover: #ff6b76;
   /* Secondary, for one supporting mark per screen (a class line, a link): 7.4:1 on --bg. */
   --accent-2: #7ea6d8;
 
