@@ -30,8 +30,13 @@ export interface EngineEvents {
    * (after start-up too: a page with new objects compiles its own shaders before its first frame).
    */
   onShaders?: (done: number, total: number) => void
-  /** Unrecoverable problem (context lost...). The page must keep working without the canvas. */
+  /** The GPU context was lost (driver reset, GPU memory reclaimed...). The page must keep working without the canvas. */
   onError?: (reason: 'context-lost') => void
+  /**
+   * The browser gave the context back after a loss. Every GPU resource of this engine is gone with the old context
+   * (bakes, render targets, compiled shaders): the owner should dispose this engine and create a new one.
+   */
+  onRestored?: () => void
 }
 
 /** Telephoto lens: flattens perspective, which reads as "observed through an instrument" and keeps the limb round. */
@@ -167,6 +172,7 @@ export class Engine {
     }
 
     canvas.addEventListener('webglcontextlost', this.onContextLost)
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored)
     // The canvas itself, not the window: also catches size changes without a window resize (mobile address bar,
     // scrollbars). Observers run after layout and before paint, so the redraw below lands in the same frame.
     if (typeof ResizeObserver !== 'undefined') {
@@ -276,6 +282,7 @@ export class Engine {
     this.disposed = true
     this.stop()
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost)
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored)
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.onResize)
     this.stage?.dispose()
@@ -420,8 +427,13 @@ export class Engine {
   }
 
   private readonly onContextLost = (e: Event): void => {
+    // Without preventDefault the browser never restores the context.
     e.preventDefault()
     this.stop()
     this.events.onError?.('context-lost')
+  }
+
+  private readonly onContextRestored = (): void => {
+    if (!this.disposed) this.events.onRestored?.()
   }
 }

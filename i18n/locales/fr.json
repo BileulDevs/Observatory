@@ -18,7 +18,8 @@
   },
   "space": {
     "unsupported": "WebGL 2 n'est pas disponible sur ce navigateur : la vue 3D ne peut pas s'afficher.",
-    "error": "La vue 3D s'est interrompue (contexte WebGL perdu). Rechargez la page."
+    "error": "La vue 3D n'a pas pu démarrer. Rechargez la page.",
+    "lost": "La vue 3D s'est interrompue (contexte WebGL perdu). Elle repart d'elle-même dès que le navigateur le permet ; sinon, rechargez la page."
   },
   "styles": {
     "natural": "Naturaliste",

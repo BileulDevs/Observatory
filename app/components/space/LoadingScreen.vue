@@ -15,7 +15,7 @@ const { num } = useLocalized()
 const WEIGHT = { fonts: 5, engine: 30, gpu: 5, sky: 10, shaders: 35, stage: 15 } as const
 
 const done = ref(false)
-const failed = computed(() => status.value === 'unsupported' || status.value === 'error')
+const failed = computed(() => status.value === 'unsupported' || status.value === 'error' || status.value === 'lost')
 const ready = computed(() => boot.value.frame && boot.value.pendingStages === 0)
 
 /** Start-up steps in order; the first one not done is the one named on screen. */

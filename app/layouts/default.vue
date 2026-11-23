@@ -17,8 +17,8 @@ useHead({ noscript: [{ innerHTML: '<style>.boot { display: none !important; }</s
     <main id="main" class="shell__main" tabindex="-1">
       <slot />
     </main>
-    <p v-if="status === 'unsupported' || status === 'error'" class="shell__fallback mono" role="status">
-      {{ status === 'unsupported' ? $t('space.unsupported') : $t('space.error') }}
+    <p v-if="status === 'unsupported' || status === 'error' || status === 'lost'" class="shell__fallback mono" role="status">
+      {{ $t(`space.${status}`) }}
     </p>
   </div>
 </template>

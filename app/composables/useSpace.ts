@@ -2,7 +2,8 @@ import type { Engine } from '~/engine/Engine'
 import type { Stage } from '~/engine/stages/Stage'
 
 /** Lifecycle of the 3D layer, as seen by the UI. */
-export type SpaceStatus = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
+/** 'lost': the GPU context was taken away; the engine is rebuilt if the browser gives it back. 'error': failed to start. */
+export type SpaceStatus = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error' | 'lost'
 
 /**
  * The single engine instance, created by <SpaceCanvas> in the layout and kept across page navigations.
@@ -42,12 +43,15 @@ export function useSpace() {
  * Gives the page a stage for as long as it is mounted. `factory` runs once the engine exists (immediately on
  * client navigations, after the engine boots on a first visit). It may be async, so stage code (and Three.js)
  * is only downloaded in the browser. The stage is removed, and its GPU resources freed, when the page unmounts.
+ * When the engine is replaced (rebuilt after a lost GPU context), `factory` runs again for the new one: the old
+ * stage went with the old engine.
  */
 export function useStage<T extends Stage>(factory: (engine: Engine) => T | Promise<T>) {
   const stage = shallowRef<T | null>(null)
   let stop: (() => void) | null = null
   let alive = true
-  let started = false
+  /** The engine the factory last ran for: once per engine. */
+  let startedFor: Engine | null = null
 
   const { boot } = useSpace()
   let pending = false
@@ -62,8 +66,13 @@ export function useStage<T extends Stage>(factory: (engine: Engine) => T | Promi
     pending = true
     boot.value.pendingStages++
     stop = watch(engineRef, async (engine) => {
-      if (!engine || started) return
-      started = true
+      if (!engine) {
+        // Engine disposed (being rebuilt): it disposed its stage too.
+        stage.value = null
+        return
+      }
+      if (startedFor === engine) return
+      startedFor = engine
       let s: T
       try {
         s = await factory(engine)

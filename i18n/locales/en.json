@@ -18,7 +18,8 @@
   },
   "space": {
     "unsupported": "WebGL 2 is not available in this browser: the 3D view cannot be shown.",
-    "error": "The 3D view stopped (WebGL context lost). Please reload the page."
+    "error": "The 3D view could not start. Please reload the page.",
+    "lost": "The 3D view stopped (WebGL context lost). It restarts on its own as soon as the browser allows; otherwise, reload the page."
   },
   "styles": {
     "natural": "Naturalist",
