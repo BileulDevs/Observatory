@@ -29,7 +29,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: ['@nuxtjs/i18n'],
+  modules: ['@nuxtjs/i18n', '@nuxt/fonts'],
   css: ['~/assets/css/main.css'],
   // Components are referenced by file name only (<SpaceCanvas/>, not <SpaceSpaceCanvas/>).
   components: [{ path: '~/components', pathPrefix: false }],
@@ -59,15 +59,28 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        {
-          rel: 'stylesheet',
-          // "Mission" kit: Big Shoulders (condensed display, titles), Barlow (text and interface), Chivo Mono (figures).
-          // Big Shoulders is the current Google Fonts family; it replaced "Big Shoulders Display" in 2025.
-          href: 'https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@500..900&family=Barlow:wght@400;500;600&family=Chivo+Mono:wght@400;500&display=swap',
-        },
       ],
+    },
+  },
+
+  // "Mission" kit: Big Shoulders (condensed display, titles), Barlow (text and interface), Chivo Mono (figures).
+  // Downloaded from Google Fonts at build time and served from the site itself (/_fonts): no request to a third
+  // party, no extra connection before the text shows. Big Shoulders is the current Google Fonts family; it
+  // replaced "Big Shoulders Display" in 2025.
+  fonts: {
+    // global: the families are named in CSS custom properties (--font-sans...), which the module's scan of
+    // font-family declarations does not see, so it would emit no @font-face at all.
+    families: [
+      // Preloaded: what every page draws first, its title (one variable file) and its body text (regular).
+      { name: 'Big Shoulders', provider: 'google', weights: ['500 900'], global: true, preload: { subsets: ['latin'] } },
+      { name: 'Barlow', provider: 'google', weights: [400, 500, 600], global: true, preload: { subsets: ['latin'], weights: [400] } },
+      // Figures and small labels: not worth competing with the above for the first bytes.
+      { name: 'Chivo Mono', provider: 'google', weights: [400, 500], global: true, preload: false },
+    ],
+    defaults: {
+      styles: ['normal'],
+      // latin covers French (é, à, ç, œ); latin-ext only downloads if a page uses one of its characters.
+      subsets: ['latin', 'latin-ext'],
     },
   },
 
