@@ -31,8 +31,16 @@ const routeBase = computed(() => String(route.name ?? '').split('___')[0] ?? '')
 .header__mark { font-family: var(--font-display); font-weight: 800; font-size: 1.75rem; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; color: var(--fg); text-decoration: none; }
 .header__nav { display: flex; align-items: baseline; gap: var(--space-5); font-size: 0.9375rem; font-weight: 500; }
 .header__nav a { color: var(--muted); text-decoration: none; transition: color 0.2s; position: relative; white-space: nowrap; }
-.header__nav a:hover, .header__nav a[aria-current='page'] { color: var(--fg); }
-.header__nav a[aria-current='page']::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px; background: var(--accent); }
+.header__nav a:hover, .header__nav a:focus-visible, .header__nav a[aria-current='page'] { color: var(--fg); }
+/* The current page's underline, drawn in from the left on hover and keyboard focus. */
+.header__nav a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px; background: var(--accent);
+  transform: scaleX(0); transform-origin: left; transition: transform 0.25s ease;
+}
+.header__nav a:hover::after, .header__nav a:focus-visible::after, .header__nav a[aria-current='page']::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .header__nav a::after { transition: none; }
+}
 /* Six sections and the language switch need ~760 px: below that the bar scrolls sideways instead of overflowing. */
 @media (max-width: 900px) {
   .header__nav { min-width: 0; overflow-x: auto; scrollbar-width: none; padding-bottom: 6px; }
