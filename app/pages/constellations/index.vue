@@ -79,7 +79,7 @@ usePageMeta({ title: () => t('constellations.title'), description: () => t('cons
 .grid { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; gap: 1.6rem 1.4rem; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); }
 .tile { display: grid; gap: 0.35rem; color: inherit; text-decoration: none; }
 .tile__fig { width: 100%; aspect-ratio: 1; border: 1px solid var(--line); background: rgb(4 6 10 / 0.5); padding: 0.6rem; box-sizing: border-box; transition: border-color 0.25s; }
-.tile__fig path { fill: none; stroke: #c9a96e; stroke-width: 0.7; stroke-opacity: 0.7; vector-effect: non-scaling-stroke; }
+.tile__fig path { fill: none; stroke: #6b9cff; stroke-width: 0.7; stroke-opacity: 0.7; vector-effect: non-scaling-stroke; }
 .tile__fig circle { fill: #f2efe6; }
 .tile:hover .tile__fig, .tile:focus-visible .tile__fig { border-color: var(--accent); }
 .tile__name { font: 400 1.35rem/1.1 var(--font-serif); margin-top: 0.3rem; }
