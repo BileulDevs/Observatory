@@ -49,6 +49,8 @@ public/textures/solar/    Public-domain NASA / USGS maps (see the Credits page)
 public/textures/moons/    Same, for the moons that have a real map
 public/textures/dwarf/    Same, for Pluto and Ceres
 public/models/spacecraft/ NASA 3D Resources models (ISS, Hubble, JWST, Voyager 1), Draco + WebP via gltf-transform
+public/exploits/          Looping preview of each exploit (<id>.webm, 640 × 360) and its first frame (<id>.jpg),
+                          recorded from the scenes; a new exploit needs both for the index page
 public/draco/             Draco decoder (from three/examples/jsm/libs/draco/gltf/), needed by those models
 ```
 
