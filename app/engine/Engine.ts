@@ -315,9 +315,12 @@ export class Engine {
     this.renderer.toneMappingExposure = subject?.exposure ?? post?.exposure ?? natural.exposure
   }
 
-  /** Drawing pixel ratio: the device's, capped by the quality tier, scaled by the adaptive resolution. */
+  /**
+   * Drawing pixel ratio: the device's, capped by the quality tier, scaled by the tier's render scale and by the
+   * adaptive resolution.
+   */
   private pixelRatio(): number {
-    return Math.min(window.devicePixelRatio, this.quality.maxPixelRatio) * this.adaptive.scale
+    return Math.min(window.devicePixelRatio, this.quality.maxPixelRatio) * this.quality.renderScale * this.adaptive.scale
   }
 
   private resize(): void {

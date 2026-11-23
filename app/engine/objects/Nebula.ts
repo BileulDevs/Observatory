@@ -110,7 +110,7 @@ export class Nebula implements SpaceBody {
     }))
     this.root.add(this.volume)
 
-    this.starU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio)
+    this.starU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio) * ctx.quality.renderScale
     this.stars = new Points(buildStars(render), new ShaderMaterial({
       vertexShader: GALAXY_VERT, fragmentShader: GALAXY_FRAG, uniforms: this.starU,
       transparent: true, depthWrite: false, blending: AdditiveBlending,
