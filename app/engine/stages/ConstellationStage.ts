@@ -351,7 +351,7 @@ export class ConstellationStage implements Stage {
     const geo = new BufferGeometry()
     geo.setAttribute('position', new BufferAttribute(pos, 3))
     const lines = new LineSegments(geo, new LineBasicMaterial({
-      color: new Color('#c9a96e'), transparent: true, opacity: 0.55, depthTest: false, depthWrite: false,
+      color: new Color('#6b9cff'), transparent: true, opacity: 0.6, depthTest: false, depthWrite: false,
     }))
     lines.frustumCulled = false
     lines.renderOrder = 2
