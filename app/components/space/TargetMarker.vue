@@ -2,8 +2,13 @@
 /**
  * Survey-style target over the 3D scene: corner brackets around the point, a leader line, a code ("Marker 01")
  * and a precise readout. Shared by the observatory's surface marker and the exploit hotspots. Positioned by its
- * parent (CSS pixels of the canvas); decorative only, so it is hidden from assistive technology.
+ * parent (CSS pixels of the canvas). Hidden from assistive technology: where markers can be picked, the page also
+ * lists the same targets as buttons.
+ *
+ * `interactive`: the brackets answer the pointer themselves (hover, click). A marker sits beside its object, not
+ * on it, so pointing at the marker alone would otherwise reach whatever 3D object lies behind it, or nothing.
  */
+const emit = defineEmits<{ enter: []; leave: []; select: [] }>()
 withDefaults(defineProps<{
   x: number
   y: number
@@ -19,12 +24,17 @@ withDefaults(defineProps<{
   active?: boolean
   /** Text on the left of the target (for targets on the left of a cluster, so labels do not overlap). */
   flip?: boolean
-}>(), { code: '', title: '', readout: '', open: true, active: false, flip: false })
+  /** The brackets take hover and clicks (see above). */
+  interactive?: boolean
+}>(), { code: '', title: '', readout: '', open: true, active: false, flip: false, interactive: false })
 </script>
 
 <template>
-  <div class="target mono" :class="{ 'is-open': open, 'is-active': active, 'is-flip': flip }" :style="{ transform: `translate(${x - 13}px, ${y - 13}px)` }" aria-hidden="true">
-    <svg class="target__mark" width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1">
+  <div class="target mono" :class="{ 'is-open': open, 'is-active': active, 'is-flip': flip, 'is-interactive': interactive }" :style="{ transform: `translate(${x - 13}px, ${y - 13}px)` }" aria-hidden="true">
+    <svg
+      class="target__mark" width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1"
+      @pointerenter="interactive && emit('enter')" @pointerleave="interactive && emit('leave')" @click="interactive && emit('select')"
+    >
       <path d="M1 7V1h6M19 1h6v6M25 19v6h-6M7 25H1v-6" /><circle cx="13" cy="13" r="1.5" fill="currentColor" stroke="none" />
     </svg>
     <span class="target__lead" />
@@ -40,6 +50,8 @@ withDefaults(defineProps<{
 <style scoped>
 .target { position: absolute; left: 0; top: 0; display: flex; align-items: center; color: var(--accent); will-change: transform; }
 .target__mark { flex: none; transition: transform 0.25s var(--ease-out); }
+/* The parent layer lets the pointer through to the canvas; only the brackets of a pickable marker take it. */
+.target.is-interactive .target__mark { pointer-events: auto; cursor: pointer; }
 .target.is-active .target__mark { transform: scale(1.25); }
 .target__lead, .target__txt { opacity: 0; transition: opacity 0.25s; }
 .target.is-open .target__lead, .target.is-open .target__txt, .target.is-active .target__lead, .target.is-active .target__txt { opacity: 1; }
