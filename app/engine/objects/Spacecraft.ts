@@ -90,32 +90,7 @@ export class Spacecraft implements SpaceBody {
     if (render.earth) this.addEarth(ctx)
 
     if (render.model in NASA_MODELS) {
-      const model = render.model as NasaModel
-      // One model at a time across the page, shaders compiled and textures uploaded before it is shown.
-      serial(async () => {
-        if (this.disposed) return
-        const loaded = await loadNasaModel(model, this.mats, ctx.preview)
-        const scene = loaded.root
-        // The page may have been left while the file was loading.
-        if (this.disposed) {
-          disposeModel(scene, this.mats)
-          return
-        }
-        const rot = MODEL_ROTATION[render.model]
-        if (rot) scene.rotation.set(...rot)
-        fit(scene, MODEL_RADIUS * (FIT_BOOST[render.model] ?? 1))
-        await prepareForScene(ctx.renderer, scene, sceneOf(this.root), ctx.drawTarget)
-        if (this.disposed) {
-          disposeModel(scene, this.mats)
-          return
-        }
-        this.loaded = loaded
-        // Start from the default view whatever the drift did while the file was loading.
-        this.model.rotation.y = 0
-        this.model.add(scene)
-        this.frame = scene
-        ctx.invalidate()
-      }).catch((err) => console.error('[spacecraft] model failed to load', NASA_MODELS[model], err))
+      this.loadModel(render.model as NasaModel, ctx)
     } else {
       const built = new Group()
       if (render.model === 'tiangong') this.buildTiangong(built)
@@ -150,6 +125,61 @@ export class Spacecraft implements SpaceBody {
     releaseCraftMaterials()
     if (this.usesEarth) releaseEarthTexture()
     this.root.removeFromParent()
+  }
+
+  // --- NASA models -----------------------------------------------------------------------------------------------
+
+  /**
+   * Thumbnails load the light preview file only. The object page loads it too, first, so the craft shows up after
+   * ~2 MB instead of the full file (13 MB for the ISS), then swaps in the full model once it is ready. Sequential on
+   * purpose: fetched in parallel, the two files would share the bandwidth and the preview would arrive later.
+   * One model at a time across the page (serial), shaders compiled and textures uploaded before each is shown.
+   */
+  private loadModel(model: NasaModel, ctx: BodyContext): void {
+    const fail = (err: unknown) => console.error('[spacecraft] model failed to load', NASA_MODELS[model], err)
+    serial(() => this.showModel(model, ctx, true))
+      .then((shown) => { if (shown && !ctx.preview) return serial(() => this.showModel(model, ctx, false)) })
+      .catch(fail)
+  }
+
+  /** Loads one version of a model and puts it in place of the current one. False when the page was left meanwhile. */
+  private async showModel(model: NasaModel, ctx: BodyContext, preview: boolean): Promise<boolean> {
+    if (this.disposed) return false
+    const loaded = await loadNasaModel(model, this.mats, preview)
+    const scene = loaded.root
+    // The page may have been left while the file was loading.
+    if (this.disposed) {
+      disposeModel(scene, this.mats)
+      return false
+    }
+    const previous = this.loaded
+    if (previous) {
+      // Same file before simplification, same nodes: taking the preview's placement keeps the swap from jumping.
+      scene.position.copy(previous.root.position)
+      scene.quaternion.copy(previous.root.quaternion)
+      scene.scale.copy(previous.root.scale)
+    } else {
+      const rot = MODEL_ROTATION[model]
+      if (rot) scene.rotation.set(...rot)
+      fit(scene, MODEL_RADIUS * (FIT_BOOST[model] ?? 1))
+    }
+    await prepareForScene(ctx.renderer, scene, sceneOf(this.root), ctx.drawTarget)
+    if (this.disposed) {
+      disposeModel(scene, this.mats)
+      return false
+    }
+    // First arrival: start from the default view whatever the drift did while the file was loading. A swap keeps
+    // the current angle, so the visitor sees the detail sharpen rather than the craft jump back.
+    if (!previous) this.model.rotation.y = 0
+    this.model.add(scene)
+    this.loaded = loaded
+    this.frame = scene
+    if (previous) {
+      previous.root.removeFromParent()
+      disposeModel(previous.root, this.mats)
+    }
+    ctx.invalidate()
+    return true
   }
 
   // --- building blocks -----------------------------------------------------------------------------------------
