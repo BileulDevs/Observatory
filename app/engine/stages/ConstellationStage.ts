@@ -136,7 +136,7 @@ export class ConstellationStage implements Stage {
   attach(ctx: StageContext): void {
     this.ctx = ctx
     this.savedFov = ctx.camera.fov
-    this.starU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio)
+    this.starU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio) * ctx.quality.renderScale
     this.earthU.uPR.value = this.starU.uPR.value
     ctx.setViewShift(this.shift)
     // Controls first: OrbitControls aims the camera at its target when created, and with the camera at the

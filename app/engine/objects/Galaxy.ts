@@ -79,7 +79,7 @@ export class Galaxy implements SpaceBody {
     }
     this.placeMarks(render, R)
 
-    const pr = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio)
+    const pr = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio) * ctx.quality.renderScale
     this.pointU = { uPR: { value: pr }, uViewH: { value: 800 }, uI: { value: (opts.intensity ?? 1) * 1.0 } }
     this.dustU = { uPR: { value: pr }, uViewH: { value: 800 }, uI: { value: render.dust } }
     this.stars = new Points(toGeometry(stars), new ShaderMaterial({

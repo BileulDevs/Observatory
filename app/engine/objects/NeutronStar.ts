@@ -109,7 +109,7 @@ export class NeutronStar implements SpaceBody {
     this.root.add(this.glow)
 
     if (render.windNebula) {
-      this.nebulaU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio)
+      this.nebulaU.uPR.value = Math.min(window.devicePixelRatio, ctx.quality.maxPixelRatio) * ctx.quality.renderScale
       this.nebula = new Points(
         buildWindNebula(new Color(render.windNebula.color), ctx.preview ? NEBULA_POINTS.preview : NEBULA_POINTS.full, render.seed),
         new ShaderMaterial({
