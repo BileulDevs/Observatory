@@ -134,6 +134,11 @@ button { font: inherit; }
 /* App pages are full-screen instruments: the document itself does not scroll (panels scroll internally). */
 html, body { height: 100%; overflow: hidden; }
 
+/* Scrollbars: a thin light-grey thumb, no track. scrollbar-color is inherited, so every scroller of the site takes it;
+   the width is set per element (a scroller that hides its bar keeps scrollbar-width: none, which is more specific). */
+:root { scrollbar-color: rgb(225 228 232 / 0.35) transparent; }
+* { scrollbar-width: thin; }
+
 /* Segmented choice: text buttons, the active one underlined in accent. */
 .seg { display: flex; flex-wrap: wrap; gap: 0.25rem 1.125rem; }
 .seg button {
