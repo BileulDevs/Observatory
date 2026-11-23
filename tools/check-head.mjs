@@ -13,6 +13,11 @@ const SKIPPED = new Set(['200.html', '404.html'])
 /** What every page must contain, as [label, test on the HTML]. */
 const CHECKS = [
   ['<title>', (html) => /<title>[^<]+<\/title>/.test(html)],
+  // "Observatory · Observatory": a page title equal to the site name, doubled by the title template.
+  ['<title> without a repeated part', (html) => {
+    const parts = (/<title>([^<]+)<\/title>/.exec(html)?.[1] ?? '').split(' · ')
+    return new Set(parts).size === parts.length
+  }],
   ['meta description', (html) => /<meta name="description" content="[^"]+"/.test(html)],
   ['og:title', (html) => /<meta property="og:title" content="[^"]+"/.test(html)],
   ['og:description', (html) => /<meta property="og:description" content="[^"]+"/.test(html)],
