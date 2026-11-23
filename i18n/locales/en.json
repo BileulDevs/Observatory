@@ -1,7 +1,8 @@
 {
   "site": {
     "name": "Observatory",
-    "tagline": "procedural planets and real systems"
+    "tagline": "procedural planets and real systems",
+    "ogImageAlt": "Observatory: a procedurally generated ocean world, beside the site name."
   },
   "a11y": {
     "skip": "Skip to content",

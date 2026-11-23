@@ -1,7 +1,8 @@
 {
   "site": {
     "name": "Observatory",
-    "tagline": "planètes procédurales et systèmes réels"
+    "tagline": "planètes procédurales et systèmes réels",
+    "ogImageAlt": "Observatory : une planète océanique générée par procédure, à côté du nom du site."
   },
   "a11y": {
     "skip": "Aller au contenu",

@@ -14,7 +14,22 @@ useHead(() => ({
   link: [...(i18nHead.value.link ?? []), { rel: 'canonical', href: pageUrl.value }],
   meta: [...(i18nHead.value.meta ?? [])],
 }))
-useSeoMeta({ ogUrl: () => pageUrl.value, ogSiteName: () => t('site.name') })
+/**
+ * Link preview image, the same for every page: a real frame of the home planet with the site name
+ * (public/og.jpg, 1200 × 630, the size Open Graph and Twitter cards expect). Absolute URL: crawlers require one.
+ */
+const OG_IMAGE = { path: '/og.jpg', width: 1200, height: 630 }
+useSeoMeta({
+  ogUrl: () => pageUrl.value,
+  ogSiteName: () => t('site.name'),
+  ogImage: `${siteUrl}${OG_IMAGE.path}`,
+  ogImageType: 'image/jpeg',
+  ogImageWidth: OG_IMAGE.width,
+  ogImageHeight: OG_IMAGE.height,
+  ogImageAlt: () => t('site.ogImageAlt'),
+  twitterImage: `${siteUrl}${OG_IMAGE.path}`,
+  twitterImageAlt: () => t('site.ogImageAlt'),
+})
 </script>
 
 <template>

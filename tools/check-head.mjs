@@ -3,7 +3,7 @@
  * engines and link previews read without running JavaScript. Run with `npm run check:head`; exits 1 on any miss.
  * No dependency: Node's fs and regular expressions on the generated HTML.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 
 const ROOT = resolve('.output/public')
@@ -18,6 +18,12 @@ const CHECKS = [
   ['og:description', (html) => /<meta property="og:description" content="[^"]+"/.test(html)],
   ['og:url', (html) => /<meta property="og:url" content="https?:\/\/[^"]+"/.test(html)],
   ['canonical', (html) => /<link rel="canonical" href="https?:\/\/[^"]+"/.test(html)],
+  // The image must exist in the build too: an absolute URL to a missing file gives a preview without a picture.
+  ['og:image (served by this build)', (html) => {
+    const url = /<meta property="og:image" content="(https?:\/\/[^"]+)"/.exec(html)?.[1]
+    return !!url && existsSync(join(ROOT, new URL(url).pathname))
+  }],
+  ['twitter:image', (html) => /<meta name="twitter:image" content="https?:\/\/[^"]+"/.test(html)],
   ['<h1> with text', (html) => /<h1[^>]*>\s*[^<\s][^<]*<\/h1>/.test(html)],
 ]
 
@@ -49,4 +55,4 @@ if (failures.length) {
   console.error(`\n${failures.length} of ${files.length} pages fail the head check.`)
   process.exit(1)
 }
-console.log(`${files.length} pages checked: title, description, Open Graph, canonical and <h1> all present.`)
+console.log(`${files.length} pages checked: title, description, Open Graph (with image), canonical and <h1> all present.`)
