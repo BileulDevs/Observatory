@@ -51,6 +51,7 @@
     "render": "Rendering",
     "idle": "idle",
     "fps": "fps",
+    "adaptive": "Adaptive resolution",
     "light": "Sun position",
     "relief": "Relief",
     "q512": "Mobile · 512",

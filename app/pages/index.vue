@@ -58,7 +58,7 @@ const sunAz = ref(STYLE_PARAMS.natural.sunAz)
 const spin = ref(true)
 const quality = ref<number>(1024)
 const progress = ref<{ done: number; total: number } | null>(null)
-const stats = ref<{ fps: number; idle: boolean } | null>(null)
+const stats = ref<{ fps: number; idle: boolean; resolution: number } | null>(null)
 const facts = ref<SurfaceFacts | null>(null)
 const debugByKey = ref(false)
 /** Tool whose panel is open, or null (closed on arrival: the planet comes first). */
@@ -331,6 +331,8 @@ usePageMeta({
         <dd>{{ progress ? $t('observatory.baking', { done: progress.done, total: progress.total }) : $t('observatory.baked') }}</dd>
         <dt>{{ $t('observatory.render') }}</dt>
         <dd>{{ !stats ? '—' : stats.idle ? $t('observatory.idle') : `${stats.fps} ${$t('observatory.fps')}` }}</dd>
+        <dt>{{ $t('observatory.adaptive') }}</dt>
+        <dd>{{ !stats ? '—' : `× ${num(stats.resolution, 2)}` }}</dd>
       </dl>
     </section>
   </div>

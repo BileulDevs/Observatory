@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { CubeBaker } from './bake/CubeBaker'
 import { Backdrop } from './bodies/Backdrop'
 import { StagePass } from './core/StagePass'
+import { AdaptiveResolution } from './core/adaptiveResolution'
 import { detectQuality, type QualityProfile } from './core/quality'
 import { disposeTextures } from './core/textures'
 import { STYLE_PARAMS } from './presets'
@@ -95,6 +96,10 @@ export class Engine {
   private fpsSince = 0
   private fps = 0
   private lastRenderAt = 0
+  /** Scales the pixel ratio down when continuous frames run slow, and back up when they are smooth again. */
+  private readonly adaptive = new AdaptiveResolution()
+  /** When the previous frame of an unbroken animation loop was drawn; 0 when the loop has just (re)started. */
+  private loopDrawAt = 0
   private disposed = false
   /**
    * Materials being compiled before the next frame may be drawn. Drawing earlier would make three compile
@@ -247,10 +252,13 @@ export class Engine {
     this.wake()
   }
 
-  /** Frames actually drawn per second over the last half second, and whether the GPU is idle (render-on-demand). */
-  get renderStats(): { fps: number; idle: boolean } {
+  /**
+   * Frames actually drawn per second over the last half second, whether the GPU is idle (render-on-demand), and the
+   * adaptive resolution scale (1 = the tier's full pixel ratio).
+   */
+  get renderStats(): { fps: number; idle: boolean; resolution: number } {
     const idle = performance.now() - this.lastRenderAt > 500
-    return { fps: idle ? 0 : this.fps, idle }
+    return { fps: idle ? 0 : this.fps, idle, resolution: this.adaptive.scale }
   }
 
   get currentStage(): Stage | null {
@@ -307,10 +315,15 @@ export class Engine {
     this.renderer.toneMappingExposure = subject?.exposure ?? post?.exposure ?? natural.exposure
   }
 
+  /** Drawing pixel ratio: the device's, capped by the quality tier, scaled by the adaptive resolution. */
+  private pixelRatio(): number {
+    return Math.min(window.devicePixelRatio, this.quality.maxPixelRatio) * this.adaptive.scale
+  }
+
   private resize(): void {
     const w = this.canvas.clientWidth || window.innerWidth
     const h = this.canvas.clientHeight || window.innerHeight
-    const pr = Math.min(window.devicePixelRatio, this.quality.maxPixelRatio)
+    const pr = this.pixelRatio()
     this.size = { w, h, pr }
     this.renderer.setPixelRatio(pr)
     this.renderer.setSize(w, h, false)
@@ -340,6 +353,29 @@ export class Engine {
   private stop(): void {
     if (this.raf) cancelAnimationFrame(this.raf)
     this.raf = 0
+    this.breakLoop()
+  }
+
+  /** The run of continuous frames is broken: the next frame's duration would include the pause. */
+  private breakLoop(): void {
+    this.loopDrawAt = 0
+    this.adaptive.reset()
+  }
+
+  /**
+   * Feeds the adaptive resolution with the frame just drawn, when it continues an animation loop. Frames of a bake
+   * or of shaders compiling are slow on purpose and say nothing about the scene's own cost: left out.
+   */
+  private measureFrame(now: number, looping: boolean): void {
+    const measurable = this.loopDrawAt > 0 && !this.baker.busy && !this.warming
+    const next = measurable ? this.adaptive.sample(now - this.loopDrawAt, now) : null
+    if (looping) this.loopDrawAt = now
+    else this.breakLoop()
+    if (next === null) return
+    this.resize()
+    this.stage?.resized?.()
+    // Resizing cleared the buffer the frame was just drawn into: draw it again now, or that frame shows black.
+    this.composer.render()
   }
 
   /** Restarts the loop if it was idle and something needs drawing. */
@@ -365,6 +401,7 @@ export class Engine {
     // Same while content holds the frame (a planet whose first bake waits for its bake program, see CubeBaker.hold).
     // The two are polled separately on purpose: pollWarm() also reports progress to the loading screen.
     if (this.pollWarm() || this.baker.blocking) {
+      this.breakLoop()
       this.inFrame = false
       this.raf = requestAnimationFrame(this.frame)
       return
@@ -376,6 +413,7 @@ export class Engine {
     const result = this.stage?.update(dt) ?? { render: false, animating: false }
     if (result.render) this.dirty = true
 
+    const drawing = this.dirty
     if (this.dirty) {
       this.dirty = false
       this.applyLookToPost()
@@ -401,6 +439,7 @@ export class Engine {
       }
     }
 
+    if (drawing) this.measureFrame(now, result.animating)
     this.inFrame = false
     // Keep looping only while something can still change on its own; invalidate() restarts it otherwise.
     if (result.animating || this.baker.busy || this.dirty) this.raf = requestAnimationFrame(this.frame)
@@ -414,7 +453,7 @@ export class Engine {
   private readonly onResize = (): void => {
     const w = this.canvas.clientWidth || window.innerWidth
     const h = this.canvas.clientHeight || window.innerHeight
-    const pr = Math.min(window.devicePixelRatio, this.quality.maxPixelRatio)
+    const pr = this.pixelRatio()
     if (w === this.size.w && h === this.size.h && pr === this.size.pr) return
     this.resize()
     this.stage?.resized?.()
