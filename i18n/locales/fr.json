@@ -617,7 +617,14 @@
     "recenter": "Recentrer la caméra",
     "autoplay": "Enchaîner les étapes",
     "autoplayOn": "Les étapes s'enchaînent",
-    "autoplayOff": "Arrêt à la fin de chaque étape"
+    "autoplayOff": "Arrêt à la fin de chaque étape",
+    "quality": {
+      "label": "Qualité 3D",
+      "auto": "Auto ({tier})",
+      "low": "Basse",
+      "medium": "Moyenne",
+      "high": "Haute"
+    }
   },
   "error": {
     "home": "Retour à l'observatoire",

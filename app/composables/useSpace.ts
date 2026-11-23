@@ -1,4 +1,5 @@
 import type { Engine } from '~/engine/Engine'
+import { writeQualityOverride, type QualityTier } from '~/engine/core/quality'
 import type { Stage } from '~/engine/stages/Stage'
 
 /** Lifecycle of the 3D layer, as seen by the UI. */
@@ -10,6 +11,8 @@ export type SpaceStatus = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
  * Module-level on purpose: it only ever exists in the browser (set in onMounted), never during SSR.
  */
 const engineRef = shallowRef<Engine | null>(null)
+/** Rebuilds the engine (set by <SpaceCanvas>): a quality change needs a new one, its tier is fixed at creation. */
+let rebuildEngine: (() => Promise<void>) | null = null
 
 /**
  * Real start-up state, filled by events as they happen (nothing here is timed or simulated):
@@ -36,7 +39,21 @@ export function useSpace() {
   const boot = useState<BootState>('space-boot', () => ({
     fonts: false, engine: false, gpu: false, sky: false, shaders: { done: 0, total: 0, ready: false }, frame: false, pendingStages: 0,
   }))
-  return { status, boot, engine: engineRef }
+  return { status, boot, engine: engineRef, setQuality }
+}
+
+/**
+ * Switches the 3D quality: a tier, or null for the one detected from the device. Kept between visits. The engine is
+ * rebuilt with it, and every page's stage with the engine (see useStage), so the scene comes back in the new tier.
+ */
+async function setQuality(tier: QualityTier | null): Promise<void> {
+  writeQualityOverride(tier)
+  await rebuildEngine?.()
+}
+
+/** Internal: only SpaceCanvas provides the rebuild. */
+export function provideRebuild(fn: (() => Promise<void>) | null): void {
+  rebuildEngine = fn
 }
 
 /**

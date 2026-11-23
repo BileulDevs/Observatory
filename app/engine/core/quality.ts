@@ -20,7 +20,13 @@ export interface QualityProfile {
   pointerOrbit: boolean
 }
 
-/** localStorage key that forces a tier: handy to test the low tier on a desktop, or to rescue a struggling machine. */
+/** The tiers, lowest first (the order the quality picker lists them in). */
+export const QUALITY_TIERS: readonly QualityTier[] = ['low', 'medium', 'high']
+
+/**
+ * localStorage key that forces a tier. Set by the exploits' quality picker (the visitor's choice, kept between
+ * visits); also handy to test the low tier on a desktop. Absent = the tier detected from the device.
+ */
 export const QUALITY_OVERRIDE_KEY = 'space:quality'
 
 const PROFILES: Record<QualityTier, Omit<QualityProfile, 'pointerOrbit'>> = {
@@ -34,7 +40,7 @@ export function detectQuality(gl: WebGL2RenderingContext): QualityProfile {
   const coarse = window.matchMedia('(pointer: coarse)').matches
   const pointerOrbit = !coarse
 
-  const forced = readOverride()
+  const forced = readQualityOverride()
   if (forced) return { ...PROFILES[forced], pointerOrbit }
 
   if (coarse) return { ...PROFILES.low, pointerOrbit }
@@ -46,12 +52,23 @@ export function detectQuality(gl: WebGL2RenderingContext): QualityProfile {
   return { ...PROFILES[tier], pointerOrbit }
 }
 
-function readOverride(): QualityTier | null {
+/** The forced tier, or null to detect it from the device. */
+export function readQualityOverride(): QualityTier | null {
   try {
     const v = window.localStorage.getItem(QUALITY_OVERRIDE_KEY)
     return v === 'low' || v === 'medium' || v === 'high' ? v : null
   } catch {
     // Storage can throw in privacy modes and sandboxed frames: just ignore the override.
     return null
+  }
+}
+
+/** Forces a tier (null: back to detection). Read when the next engine is created. */
+export function writeQualityOverride(tier: QualityTier | null): void {
+  try {
+    if (tier) window.localStorage.setItem(QUALITY_OVERRIDE_KEY, tier)
+    else window.localStorage.removeItem(QUALITY_OVERRIDE_KEY)
+  } catch {
+    // Storage blocked: the choice cannot be kept. The caller rebuilds anyway, so nothing changes on screen.
   }
 }

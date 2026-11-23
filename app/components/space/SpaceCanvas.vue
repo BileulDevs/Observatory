@@ -71,6 +71,8 @@ async function restart(): Promise<void> {
 }
 
 onMounted(() => {
+  // The quality picker rebuilds the engine through the same path as a restored context.
+  provideRebuild(restart)
   mq = window.matchMedia(REDUCED_MOTION_QUERY)
   mq.addEventListener('change', onMotionChange)
   document.addEventListener('visibilitychange', onVisibility)
@@ -79,6 +81,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   unmounted = true
+  provideRebuild(null)
   mq?.removeEventListener('change', onMotionChange)
   document.removeEventListener('visibilitychange', onVisibility)
   engine.value?.dispose()

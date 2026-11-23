@@ -617,7 +617,14 @@
     "recenter": "Recenter the camera",
     "autoplay": "Play the steps in a row",
     "autoplayOn": "Steps play in a row",
-    "autoplayOff": "Stop at the end of each step"
+    "autoplayOff": "Stop at the end of each step",
+    "quality": {
+      "label": "3D quality",
+      "auto": "Auto ({tier})",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
   },
   "error": {
     "home": "Back to the observatory",
