@@ -615,12 +615,14 @@
     "notFound": "Unknown exploit",
     "marker": "Marker {n}",
     "recenter": "Recenter the camera",
+    "recenterShort": "Recenter",
     "autoplay": "Play the steps in a row",
     "autoplayOn": "Steps play in a row",
     "autoplayOff": "Stop at the end of each step",
     "quality": {
       "label": "3D quality",
-      "auto": "Auto ({tier})",
+      "auto": "Auto: {tier}",
+      "autoShort": "Auto",
       "low": "Low",
       "medium": "Medium",
       "high": "High"
