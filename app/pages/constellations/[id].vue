@@ -24,7 +24,9 @@ const { sheet } = useStarSheet()
 // in dev builds Vue still renders the template after a setup error, and the template then reads fields of an
 // undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
 definePageMeta({
-  validate: (route) => CONSTELLATIONS.some((c) => c.id === String(route.params.id)),
+  // Data imported here rather than from the top-level imports: the route table, in the entry chunk, holds this
+  // function, and a static import would bundle every constellation into every page of the site.
+  validate: async (route) => (await import('~/data/constellations.generated')).CONSTELLATIONS.some((c) => c.id === String(route.params.id)),
 })
 
 const summary = CONSTELLATIONS.find((c) => c.id === String(route.params.id))
@@ -141,7 +143,7 @@ const tipLabel = computed(() => {
   return s.distLy !== null ? t('constellations.tooltip', { name: label(s), d: num(s.distLy, 0) }) : label(s)
 })
 
-useSeoMeta({
+usePageMeta({
   title: () => `${tl(summary.name)} · ${t('constellations.title')}`,
   description: () => t('constellations.pageDescription', { name: tl(summary.name) }),
 })

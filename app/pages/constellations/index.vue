@@ -23,7 +23,7 @@ const list = computed(() => {
 /** Dot radius in the 100-unit box from the apparent magnitude: brighter, bigger. */
 const dotRadius = (mag: number) => Math.min(2.6, Math.max(0.7, 2.4 - mag * 0.38))
 
-useSeoMeta({ title: () => t('constellations.title'), description: () => t('constellations.description') })
+usePageMeta({ title: () => t('constellations.title'), description: () => t('constellations.description') })
 </script>
 
 <template>

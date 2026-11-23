@@ -1,7 +1,8 @@
 {
   "site": {
     "name": "Observatory",
-    "tagline": "planètes procédurales et systèmes réels"
+    "tagline": "planètes procédurales et systèmes réels",
+    "ogImageAlt": "Observatory : une planète océanique générée par procédure, à côté du nom du site."
   },
   "a11y": {
     "skip": "Aller au contenu",
@@ -18,7 +19,8 @@
   },
   "space": {
     "unsupported": "WebGL 2 n'est pas disponible sur ce navigateur : la vue 3D ne peut pas s'afficher.",
-    "error": "La vue 3D s'est interrompue (contexte WebGL perdu). Rechargez la page."
+    "error": "La vue 3D n'a pas pu démarrer. Rechargez la page.",
+    "lost": "La vue 3D s'est interrompue (contexte WebGL perdu). Elle repart d'elle-même dès que le navigateur le permet ; sinon, rechargez la page."
   },
   "styles": {
     "natural": "Naturaliste",
@@ -50,12 +52,16 @@
     "render": "Rendu",
     "idle": "veille",
     "fps": "i/s",
+    "adaptive": "Résolution adaptative",
     "light": "Position du soleil",
     "relief": "Relief",
     "q512": "Mobile · 512",
     "q1024": "Haute · 1024",
     "q2048": "Ultra · 2048",
     "reseed": "Nouveau monde",
+    "share": "Partager ce monde",
+    "shareCopied": "Lien copié",
+    "shareFailed": "Copie impossible",
     "hint": "Faites glisser pour tourner, molette pour zoomer.",
     "worldLabel": "Ce monde",
     "kindLine": "{kind} · graine {seed}",

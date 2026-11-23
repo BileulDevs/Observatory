@@ -6,7 +6,7 @@
 const { t } = useI18n()
 const localePath = useLocalePath()
 
-useSeoMeta({ title: () => t('how.title'), description: () => t('how.description') })
+usePageMeta({ title: () => t('how.title'), description: () => t('how.description') })
 </script>
 
 <template>

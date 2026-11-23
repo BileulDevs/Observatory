@@ -12,7 +12,12 @@ npm install
 npm run dev        # http://localhost:3000
 npm run generate   # static site in .output/public
 npm run typecheck
+npm test           # unit tests (Node's built-in runner, tests/*.test.ts)
+npm run check:head # after generate: every prerendered page has its title, description, Open Graph and <h1>
 ```
+
+Pages are server-rendered at build time, so the static HTML already holds each page's text and metadata
+(search engines, link previews); the 3D canvas starts on the client.
 
 Static hosting: generated systems other than the featured ones are rendered client-side, so the host must
 serve `200.html` for unknown paths. `public/_redirects` does it on Netlify; other hosts need the equivalent rule.

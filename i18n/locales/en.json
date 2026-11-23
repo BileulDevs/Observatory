@@ -1,7 +1,8 @@
 {
   "site": {
     "name": "Observatory",
-    "tagline": "procedural planets and real systems"
+    "tagline": "procedural planets and real systems",
+    "ogImageAlt": "Observatory: a procedurally generated ocean world, beside the site name."
   },
   "a11y": {
     "skip": "Skip to content",
@@ -18,7 +19,8 @@
   },
   "space": {
     "unsupported": "WebGL 2 is not available in this browser: the 3D view cannot be shown.",
-    "error": "The 3D view stopped (WebGL context lost). Please reload the page."
+    "error": "The 3D view could not start. Please reload the page.",
+    "lost": "The 3D view stopped (WebGL context lost). It restarts on its own as soon as the browser allows; otherwise, reload the page."
   },
   "styles": {
     "natural": "Naturalist",
@@ -50,12 +52,16 @@
     "render": "Rendering",
     "idle": "idle",
     "fps": "fps",
+    "adaptive": "Adaptive resolution",
     "light": "Sun position",
     "relief": "Relief",
     "q512": "Mobile · 512",
     "q1024": "High · 1024",
     "q2048": "Ultra · 2048",
     "reseed": "New world",
+    "share": "Share this world",
+    "shareCopied": "Link copied",
+    "shareFailed": "Copy failed",
     "hint": "Drag to rotate, scroll to zoom.",
     "worldLabel": "This world",
     "kindLine": "{kind} · seed {seed}",
