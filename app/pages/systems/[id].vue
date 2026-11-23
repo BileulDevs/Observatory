@@ -5,8 +5,6 @@
  * survives a reload.
  */
 import { findSystem } from '~/data/catalog'
-import { isGeneratedId } from '~/data/generate'
-import { realSystems } from '~/data/systems'
 import { toStage } from '~/data/scale'
 import type { SystemLabel, SystemLayout, SystemStage as SystemStageType } from '~/engine/stages/SystemStage'
 import type { Localized } from '~/types/systems'
@@ -36,9 +34,12 @@ const { planetRows, starRows, moonRow, moonRows } = useFacts()
 // undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
 definePageMeta({
   // Cheap check on purpose: findSystem would build a whole generated system here only to throw it away.
-  validate: (route) => {
+  // Data imported here rather than from the top-level imports: the route table, in the entry chunk, holds this
+  // function, and a static import would bundle the data into every page of the site.
+  validate: async (route) => {
     const id = String(route.params.id)
-    return isGeneratedId(id) || realSystems.some((s) => s.id === id)
+    const [generate, systems] = await Promise.all([import('~/data/generate'), import('~/data/systems')])
+    return generate.isGeneratedId(id) || systems.realSystems.some((s) => s.id === id)
   },
 })
 

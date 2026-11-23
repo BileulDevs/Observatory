@@ -24,7 +24,9 @@ const { rows } = useObjectFacts()
 // in dev builds Vue still renders the template after a setup error, and the template then reads fields of an
 // undefined value (TypeError over the 404 page). The throw below stays as the type guard for the rest of setup.
 definePageMeta({
-  validate: (route) => !!findObject(String(route.params.id)),
+  // Data imported here rather than from the top-level imports: the route table, in the entry chunk, holds this
+  // function, and a static import would bundle the whole catalogue into every page of the site.
+  validate: async (route) => !!(await import('~/data/objects')).findObject(String(route.params.id)),
 })
 
 const object = findObject(String(route.params.id))
